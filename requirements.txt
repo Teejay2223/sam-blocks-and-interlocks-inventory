@@ -1,0 +1,7 @@
+Flask
+flask-login
+werkzeug
+gunicorn
+itsdangerous
+pytest
+psycopg2-binary
