@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% block title %}All Routes{% endblock %}
+{% block content %}
+<h3>All Routes (Admin)</h3>
+<table class="table table-sm">
+  <thead><tr><th>Rule</th><th>Endpoint</th><th>Methods</th></tr></thead>
+  <tbody>
+    {% for r in routes %}
+      <tr><td>{{ r.rule }}</td><td>{{ r.endpoint }}</td><td>{{ r.methods }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

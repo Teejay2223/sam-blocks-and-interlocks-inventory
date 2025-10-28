@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Trips{% endblock %}
+{% block content %}
+<h3>Trips</h3>
+<div class="card p-3 mb-3">
+	<form method="POST" class="row g-2">
+		<div class="col-md-3"><input name="vehicle_no" placeholder="Vehicle No" class="form-control" required></div>
+		<div class="col-md-2"><input name="driver_name" placeholder="Driver" class="form-control"></div>
+		<div class="col-md-2"><input name="date" type="date" class="form-control"></div>
+		<div class="col-md-2"><input name="amount" type="number" class="form-control" placeholder="Amount"></div>
+		<div class="col-md-3"><input name="note" class="form-control" placeholder="Note"></div>
+		<div class="col-12"><button class="btn btn-primary mt-2">Record Trip</button></div>
+	</form>
+</div>
+
+<h5>Totals Today</h5>
+<ul>
+	{% for t in totals_today %}
+		<li>{{ t.vehicle_no }} — {{ t.total }}</li>
+	{% endfor %}
+</ul>
+
+<h5 class="mt-4">All Trips</h5>
+<table class="table">
+	<thead>
+		<tr>
+			<th>ID</th>
+			<th>Vehicle</th>
+			<th>Driver</th>
+			<th>Date</th>
+			<th>Amount</th>
+			<th>Note</th>
+			<th>Actions</th>
+		</tr>
+	</thead>
+	<tbody>
+		{% for tr in trips %}
+			<tr>
+				<td>{{ tr.id }}</td>
+				<td>{{ tr.vehicle_no }}</td>
+				<td>{{ tr.driver_name }}</td>
+				<td>{{ tr.date }}</td>
+				<td>{{ tr.amount }}</td>
+				<td>{{ tr.note }}</td>
+				<td>
+					<a class="btn btn-sm btn-outline-primary" href="{{ url_for('trips_edit', tid=tr.id) }}">Edit</a>
+				</td>
+			</tr>
+		{% endfor %}
+	</tbody>
+</table>
+
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}My Orders{% endblock %}
+{% block content %}
+<h3>My Orders</h3>
+<table class="table">
+<thead><tr><th>ID</th><th>Date</th><th>Total</th><th>Status</th><th>Items</th></tr></thead>
+<tbody>
+{% for o in orders %}
+<tr>
+<td>{{ o.id }}</td>
+<td>{{ o.order_date }}</td>
+<td>{{ o.total }}</td>
+<td>{{ o.status }}</td>
+<td>
+  {% for it in o.items %}
+    <div>{{ it.name }} x {{ it.qty }}</div>
+  {% endfor %}
+</td>
+</tr>
+{% endfor %}
+</tbody>
+</table>
+{% endblock %}

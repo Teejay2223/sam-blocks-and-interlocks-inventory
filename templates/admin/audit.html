@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block title %}Audit Log{% endblock %}
+{% block content %}
+<h3>Product Audit Log</h3>
+<form class="row g-2 mb-3" method="get">
+  <div class="col-md-3"><select name="product_id" class="form-select"><option value="">All products</option>{% for p in products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}</select></div>
+  <div class="col-md-3"><input name="user" class="form-control" placeholder="User"></div>
+  <div class="col-md-2"><input name="field" class="form-control" placeholder="Field"></div>
+  <div class="col-md-2"><input name="start" type="date" class="form-control"></div>
+  <div class="col-md-2"><input name="end" type="date" class="form-control"></div>
+  <div class="col-12 mt-2"><button class="btn btn-primary" type="submit">Filter</button></div>
+</form>
+<table class="table table-sm">
+  <thead><tr><th>ID</th><th>When</th><th>Product</th><th>User</th><th>Field</th><th>Old</th><th>New</th><th>Reason</th></tr></thead>
+  <tbody>
+  {% for a in audits %}
+    <tr>
+      <td>{{ a.id }}</td>
+      <td>{{ a.timestamp }}</td>
+      <td>{{ a.product_name or '—' }}</td>
+      <td>{{ a.user }}</td>
+      <td>{{ a.field }}</td>
+      <td>{{ a.old_value }}</td>
+      <td>{{ a.new_value }}</td>
+      <td>{{ a.reason }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

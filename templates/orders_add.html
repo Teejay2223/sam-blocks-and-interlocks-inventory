@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Place Order{% endblock %}
+{% block content %}
+<h3>Place Order</h3>
+<form method="POST">
+	<div class="mb-3">
+		<label>Customer</label>
+		<select name="customer_id" class="form-control" required>
+			{% for c in customers %}
+				<option value="{{ c.id }}">{{ c.name }} ({{ c.email }})</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div class="mb-3">
+		<label>Product</label>
+		<select name="product_id" class="form-control" required>
+			{% for p in products %}
+				<option value="{{ p.id }}">{{ p.name }} — {{ p.size }} — ₦{{ p.price }}</option>
+			{% endfor %}
+		</select>
+	</div>
+	<div class="mb-3">
+		<label>Quantity</label>
+		<input type="number" name="qty" class="form-control" value="1" min="1" required>
+	</div>
+	<div class="mb-3">
+		<label>Payment account number (your transfer reference/account)</label>
+		<input type="text" name="account_number" class="form-control" placeholder="Enter account number or reference" required>
+	</div>
+	<div class="alert alert-warning">
+		Please make the transfer and keep the reference. Admin will verify and mark payment as Paid.
+	</div>
+	<button type="submit" class="btn btn-primary">Create Order</button>
+</form>
+<div class="alert alert-info mt-3"><strong>Payment:</strong> Make bank transfer to account: <b>First Bank — 2032554272 — SAMVentures</b>. Admin will confirm payment.</div>
+{% endblock %}

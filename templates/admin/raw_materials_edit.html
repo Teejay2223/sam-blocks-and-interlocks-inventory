@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block title %}Edit Raw Material{% endblock %}
+{% block content %}
+<h3>Edit Raw Material</h3>
+<form method="POST">
+  <div class="mb-3"><label>Name</label><input name="name" class="form-control" value="{{ material.name }}" required></div>
+  <div class="mb-3"><label>Qty</label><input name="qty" class="form-control" type="number" step="any" value="{{ material.qty }}"></div>
+  <div class="mb-3"><label>Reorder level</label><input name="reorder_level" class="form-control" type="number" step="any" value="{{ material.reorder_level }}"></div>
+  <button class="btn btn-primary">Save</button>
+</form>
+{% endblock %}

@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Sales{% endblock %}
+{% block content %}
+<h3>Sales</h3>
+<form method="POST" class="row g-2 mb-3">
+  <div class="col-md-4">
+    <select name="product_id" class="form-select" required>
+      <option value="">Select product</option>
+      {% for p in products %}
+        <option value="{{ p.id }}">{{ p.name }} - ₦{{ '%.2f'|format(p.price) }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2"><input name="qty" type="number" placeholder="Qty" class="form-control" value="1" min="1" required></div>
+  <div class="col-md-2"><input name="amount" type="number" step="0.01" placeholder="Amount" class="form-control" required></div>
+  <div class="col-md-3"><input name="buyer_name" type="text" placeholder="Buyer name" class="form-control"></div>
+  <div class="col-md-1"><button class="btn btn-success" type="submit">Record</button></div>
+</form>
+
+<table class="table table-striped">
+  <thead><tr><th>ID</th><th>Date</th><th>Product</th><th>Qty</th><th>Amount</th><th>Buyer</th><th>Actions</th></tr></thead>
+  <tbody>
+  {% for s in sales %}
+  <tr>
+    <td>{{ s.id }}</td>
+    <td>{{ s.sale_date }}</td>
+    <td>{{ s.product_name or '—' }}</td>
+    <td>{{ s.qty or 0 }}</td>
+    <td>₦{{ '%.2f'|format(s.amount) }}</td>
+    <td>{{ s.buyer_name or '' }}</td>
+    <td>
+      <a class="btn btn-sm btn-secondary" href="{{ url_for('admin_sales_edit', sid=s.id) }}">Edit</a>
+      <form method="POST" action="{{ url_for('admin_sales_delete', sid=s.id) }}" style="display:inline-block; margin-left:6px;" onsubmit="return confirm('Delete?')">
+        <button class="btn btn-sm btn-danger">Delete</button>
+      </form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Stock Reconciliation{% endblock %}
+{% block content %}
+<h3>Stock Reconciliation</h3>
+<form class="row g-2 mb-3" method="get">
+  <div class="col-md-3"><label class="form-label">Start</label><input name="start" type="date" value="{{ start }}" class="form-control"></div>
+  <div class="col-md-3"><label class="form-label">End</label><input name="end" type="date" value="{{ end }}" class="form-control"></div>
+  <div class="col-md-3 align-self-end"><button class="btn btn-primary" type="submit">Run</button></div>
+</form>
+<table class="table table-striped">
+  <thead><tr><th>Product</th><th>Opening</th><th>Sold</th><th>Broken</th><th>Adjustments</th><th>Closing</th><th>Current</th></tr></thead>
+  <tbody>
+  {% for r in result %}
+    <tr>
+      <td>{{ r.name }}</td>
+      <td>{{ r.opening }}</td>
+      <td>{{ r.sold }}</td>
+      <td>{{ r.broken }}</td>
+      <td>{{ r.adjustments }}</td>
+      <td>{{ r.closing }}</td>
+      <td>{{ r.current }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

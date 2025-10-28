@@ -1,0 +1,38 @@
+{% extends 'base.html' %}
+{% block title %}Breakages{% endblock %}
+{% block content %}
+<h3>Breakages / Damaged stock</h3>
+<form method="POST" class="row g-2 mb-3">
+  <div class="col-md-4">
+    <select name="product_id" class="form-select" required>
+      <option value="">Select product</option>
+      {% for p in products %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+    </select>
+  </div>
+  <div class="col-md-2"><input name="qty" type="number" class="form-control" placeholder="Qty" required></div>
+  <div class="col-md-3"><input name="reported_by" type="text" class="form-control" placeholder="Reported by"></div>
+  <div class="col-md-2"><input name="reason" type="text" class="form-control" placeholder="Reason"></div>
+  <div class="col-md-1"><button class="btn btn-danger" type="submit">Record</button></div>
+</form>
+
+<table class="table table-striped">
+  <thead><tr><th>ID</th><th>Date</th><th>Product</th><th>Qty</th><th>Reported by</th><th>Reason</th><th>Action</th></tr></thead>
+  <tbody>
+  {% for b in breakages %}
+    <tr>
+      <td>{{ b.id }}</td>
+      <td>{{ b.date }}</td>
+      <td>{{ b.product_name or '—' }}</td>
+      <td>{{ b.qty }}</td>
+      <td>{{ b.reported_by }}</td>
+      <td>{{ b.reason }}</td>
+      <td>
+        <form method="POST" action="{{ url_for('admin_breakages_delete', bid=b.id) }}" style="display:inline; margin-left:6px;">
+          <button class="btn btn-sm btn-secondary" type="submit">Delete</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
