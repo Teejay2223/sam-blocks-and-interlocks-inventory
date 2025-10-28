@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: sam-blocks-inventory
+    env: docker
+    region: oregon
+    branch: main
+    dockerfilePath: Dockerfile
+    autoDeploy: true
+    dockerContext: .
+    # Default environment variables for quick safe deploys. Add secrets in the
+    # Render dashboard for production settings (DATABASE_URL etc.).
+    envVars:
+      - key: FORCE_SQLITE
+        value: "1"
+        # Do not mark as secure here; change in Render web UI if you want it hidden.
