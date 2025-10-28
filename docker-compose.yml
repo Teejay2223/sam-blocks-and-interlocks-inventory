@@ -1,0 +1,27 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: samuser
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: sam_blocks
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+  web:
+    build: .
+    command: gunicorn -b 0.0.0.0:5000 app:app --workers 3
+    volumes:
+      - .:/app
+    ports:
+      - "5000:5000"
+    environment:
+      DATABASE_URL: postgresql://samuser:pass@db:5432/sam_blocks
+      FLASK_ENV: production
+    depends_on:
+      - db
+
+volumes:
+  db_data:

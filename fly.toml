@@ -1,0 +1,31 @@
+# fly.toml template for sam_blocks_inventory
+# Replace `app` value with the app name you choose on fly.io (created via `fly launch`)
+
+app = "sam-blocks-inventory"
+kill_signal = "SIGINT"
+kill_timeout = 5
+processes = []
+
+[build]
+  image = "sam_blocks_inventory:latest"
+
+[env]
+  # Optionally set production env vars in fly (also set these via `flyctl secrets set`)
+  FLASK_ENV = "production"
+  # DATABASE_URL should be set to the managed Postgres provided by Fly or your external DB
+  # DATABASE_URL = "postgresql://user:pass@host:5432/dbname"
+
+[[services]]
+  internal_port = 5000
+  protocol = "tcp"
+  [[services.ports]]
+    handlers = ["http"]
+    port = 80
+  [[services.ports]]
+    handlers = ["tls", "http"]
+    port = 443
+  [[services.tcp_checks]]
+    interval = 10000
+    timeout = 2000
+    grace_period = 10000
+    restart_limit = 0
