@@ -1340,9 +1340,6 @@ def seed_demo_sales():
 def ping():
     return "pong"
 
-if __name__ == '__main__':
-    # on first run, if DB doesn't exist, initialize
-    if not os.path.exists(app.config['DATABASE']):
-        with app.app_context():
-            init_db()
-    app.run(host='0.0.0.0', port=5000, debug=True)
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))  # Use Railway's port
+    app.run(host="0.0.0.0", port=port)
