@@ -645,67 +645,76 @@ def admin_products():
 @admin_required
 def admin_dashboard():
     db = get_db()
-    # KPIs
-    total_products = db.execute("SELECT COUNT(*) as c FROM products").fetchone()['c']
-    total_customers = db.execute("SELECT COUNT(*) as c FROM customers").fetchone()['c']
-    total_sales = db.execute("SELECT COUNT(*) as c FROM sales").fetchone()['c']
-    pending_payments = db.execute("SELECT COUNT(*) as c FROM payments WHERE status = 'Pending'").fetchone()['c']
-    
-    # Financial KPIs
-    total_revenue = db.execute("SELECT COALESCE(SUM(amount), 0) as total FROM sales").fetchone()['total']
-    total_expenses = db.execute("SELECT COALESCE(SUM(amount), 0) as total FROM trips").fetchone()['total']
-    pending_payment_amount = db.execute("SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE status = 'Pending'").fetchone()['total']
-    ledger_balance = db.execute("SELECT balance FROM ledger ORDER BY date DESC, id DESC LIMIT 1").fetchone()
-    current_balance = ledger_balance['balance'] if ledger_balance else 0
-    
-    # Sales trend data (last 7 days)
-    sales_trend = db.execute("""
-        SELECT sale_date, SUM(amount) as total 
-        FROM sales 
-        WHERE sale_date >= date('now', '-7 days')
-        GROUP BY sale_date 
-        ORDER BY sale_date
-    """).fetchall()
-    
-    # Top selling products (last 30 days)
-    top_products = db.execute("""
-        SELECT p.name, SUM(s.qty) as total_qty, SUM(s.amount) as total_amount
-        FROM sales s
-        JOIN products p ON s.product_id = p.id
-        WHERE s.sale_date >= date('now', '-30 days')
-        GROUP BY p.id, p.name
-        ORDER BY total_qty DESC
-        LIMIT 5
-    """).fetchall()
-    
-    # Recent orders
-    recent_orders = db.execute("""
-        SELECT o.id, o.order_date, o.status, o.total, c.name as customer_name
-        FROM orders o
-        JOIN customers c ON o.customer_id = c.id
-        ORDER BY o.order_date DESC
-        LIMIT 5
-    """).fetchall()
-    
-    # low stock products (qty <= reorder_level)
-    low_products = db.execute("SELECT id, name, qty, reorder_level FROM products WHERE qty <= reorder_level ORDER BY qty ASC").fetchall()
-    # low raw materials
-    low_materials = db.execute("SELECT id, name, qty, reorder_level FROM raw_materials WHERE qty <= reorder_level ORDER BY qty ASC").fetchall()
-    
-    return render_template('admin/dashboard.html', 
-                        total_products=total_products, 
-                        total_customers=total_customers,
-                        total_sales=total_sales, 
-                        pending_payments=pending_payments,
-                        total_revenue=total_revenue,
-                        total_expenses=total_expenses,
-                        pending_payment_amount=pending_payment_amount,
-                        current_balance=current_balance,
-                        sales_trend=sales_trend,
-                        top_products=top_products,
-                        recent_orders=recent_orders,
-                        low_products=low_products, 
-                        low_materials=low_materials)
+    try:
+        # KPIs
+        total_products = db.execute("SELECT COUNT(*) as c FROM products").fetchone()['c']
+        total_customers = db.execute("SELECT COUNT(*) as c FROM customers").fetchone()['c']
+        total_sales = db.execute("SELECT COUNT(*) as c FROM sales").fetchone()['c']
+        pending_payments = db.execute("SELECT COUNT(*) as c FROM payments WHERE status = 'Pending'").fetchone()['c']
+
+        # Financial KPIs
+        total_revenue = db.execute("SELECT COALESCE(SUM(amount), 0) as total FROM sales").fetchone()['total']
+        total_expenses = db.execute("SELECT COALESCE(SUM(amount), 0) as total FROM trips").fetchone()['total']
+        pending_payment_amount = db.execute("SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE status = 'Pending'").fetchone()['total']
+        ledger_balance = db.execute("SELECT balance FROM ledger ORDER BY date DESC, id DESC LIMIT 1").fetchone()
+        current_balance = ledger_balance['balance'] if ledger_balance else 0
+
+        # Sales trend data (last 7 days)
+        sales_trend = db.execute("""
+            SELECT sale_date, SUM(amount) as total 
+            FROM sales 
+            WHERE sale_date >= date('now', '-7 days')
+            GROUP BY sale_date 
+            ORDER BY sale_date
+        """).fetchall()
+
+        # Top selling products (last 30 days)
+        top_products = db.execute("""
+            SELECT p.name, SUM(s.qty) as total_qty, SUM(s.amount) as total_amount
+            FROM sales s
+            JOIN products p ON s.product_id = p.id
+            WHERE s.sale_date >= date('now', '-30 days')
+            GROUP BY p.id, p.name
+            ORDER BY total_qty DESC
+            LIMIT 5
+        """).fetchall()
+
+        # Recent orders
+        recent_orders = db.execute("""
+            SELECT o.id, o.order_date, o.status, o.total, c.name as customer_name
+            FROM orders o
+            JOIN customers c ON o.customer_id = c.id
+            ORDER BY o.order_date DESC
+            LIMIT 5
+        """).fetchall()
+
+        # low stock products (qty <= reorder_level)
+        low_products = db.execute("SELECT id, name, qty, reorder_level FROM products WHERE qty <= reorder_level ORDER BY qty ASC").fetchall()
+        # low raw materials
+        low_materials = db.execute("SELECT id, name, qty, reorder_level FROM raw_materials WHERE qty <= reorder_level ORDER BY qty ASC").fetchall()
+
+        return render_template('admin/dashboard.html', 
+                            total_products=total_products, 
+                            total_customers=total_customers,
+                            total_sales=total_sales, 
+                            pending_payments=pending_payments,
+                            total_revenue=total_revenue,
+                            total_expenses=total_expenses,
+                            pending_payment_amount=pending_payment_amount,
+                            current_balance=current_balance,
+                            sales_trend=sales_trend,
+                            top_products=top_products,
+                            recent_orders=recent_orders,
+                            low_products=low_products, 
+                            low_materials=low_materials)
+    except Exception as e:
+        app.logger.exception(f"/admin failed, rendering safe fallback: {e}")
+        try:
+            total_products = db.execute("SELECT COUNT(*) as c FROM products").fetchone()['c']
+        except Exception:
+            total_products = 0
+        # Reuse a simple page instead of erroring
+        return render_template('index.html', total_products=total_products, total_orders=0, total_customers=0)
 
 
 # --- CSV export/import for products
