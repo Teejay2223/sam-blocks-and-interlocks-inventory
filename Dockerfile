@@ -30,5 +30,5 @@ EXPOSE 5000
 ENV FLASK_ENV=production
 
 # Recommended command: use gunicorn for production
-# Use exec form with shell to properly expand PORT variable
-CMD gunicorn --bind 0.0.0.0:${PORT:-5000} app:app --workers 3 --log-level info
+# Use shell form to properly expand PORT variable
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT app:app --workers 3 --log-level info"]
