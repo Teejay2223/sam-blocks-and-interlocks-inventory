@@ -509,38 +509,127 @@ def admin_products():
 @login_required
 @admin_required
 def admin_dashboard():
+    """Admin dashboard with complete error handling and fallback UI"""
+    errors = []
+    total_products = 0
+    total_customers = 0
+    total_sales = 0
+    pending_payments = 0
+    low_products = []
+    low_materials = []
+    
     try:
         db = get_db()
-        app.logger.info('Admin dashboard using DB connection type: %s', type(db))
-        def safe_count(sql, params=()):
-            try:
-                row = db.execute(sql, params).fetchone()
-                return row['c'] if row and 'c' in row.keys() else 0
-            except Exception as e:
-                app.logger.warning('Count query failed (%s): %s', sql, e)
-                return 0
-        total_products = safe_count("SELECT COUNT(*) as c FROM products")
-        total_customers = safe_count("SELECT COUNT(*) as c FROM customers")
-        total_sales = safe_count("SELECT COUNT(*) as c FROM sales")
-        pending_payments = safe_count("SELECT COUNT(*) as c FROM payments WHERE status = 'Pending'")
+        app.logger.info('Admin dashboard: DB connection type = %s', type(db).__name__)
+        
+        # Test each query independently with detailed error capture
+        try:
+            row = db.execute("SELECT COUNT(*) as c FROM products").fetchone()
+            total_products = row['c'] if row else 0
+        except Exception as e:
+            errors.append(f"Products count: {e}")
+            app.logger.error('Products count failed: %s', e)
+        
+        try:
+            row = db.execute("SELECT COUNT(*) as c FROM customers").fetchone()
+            total_customers = row['c'] if row else 0
+        except Exception as e:
+            errors.append(f"Customers count: {e}")
+            app.logger.error('Customers count failed: %s', e)
+        
+        try:
+            row = db.execute("SELECT COUNT(*) as c FROM sales").fetchone()
+            total_sales = row['c'] if row else 0
+        except Exception as e:
+            errors.append(f"Sales count: {e}")
+            app.logger.error('Sales count failed: %s', e)
+        
+        try:
+            row = db.execute("SELECT COUNT(*) as c FROM payments WHERE status = ?", ('Pending',)).fetchone()
+            pending_payments = row['c'] if row else 0
+        except Exception as e:
+            errors.append(f"Pending payments: {e}")
+            app.logger.error('Pending payments failed: %s', e)
+        
         try:
             low_products = db.execute("SELECT id, name, qty, reorder_level FROM products WHERE qty <= reorder_level ORDER BY qty ASC").fetchall()
         except Exception as e:
-            app.logger.warning('Low products query failed: %s', e)
-            low_products = []
+            errors.append(f"Low products query: {e}")
+            app.logger.error('Low products failed: %s', e)
+        
         try:
             low_materials = db.execute("SELECT id, name, qty, reorder_level FROM raw_materials WHERE qty <= reorder_level ORDER BY qty ASC").fetchall()
         except Exception as e:
-            app.logger.warning('Low raw materials query failed: %s', e)
-            low_materials = []
-        return render_template('admin/dashboard.html', total_products=total_products, total_customers=total_customers,
-                            total_sales=total_sales, pending_payments=pending_payments,
-                            low_products=low_products, low_materials=low_materials)
-    except Exception as e:
+            errors.append(f"Low materials query: {e}")
+            app.logger.error('Low materials failed: %s', e)
+        
+        # If we got here without major crash, try rendering template
+        try:
+            return render_template('admin/dashboard.html', 
+                                total_products=total_products, 
+                                total_customers=total_customers,
+                                total_sales=total_sales, 
+                                pending_payments=pending_payments,
+                                low_products=low_products, 
+                                low_materials=low_materials)
+        except Exception as template_error:
+            errors.append(f"Template render: {template_error}")
+            app.logger.error('Template render failed: %s', template_error)
+            # Fall through to error display
+    
+    except Exception as fatal:
         import traceback
         tb = traceback.format_exc()
-        app.logger.error('Admin dashboard fatal error: %s\n%s', e, tb)
-        return ("<h2>Admin dashboard error</h2><p>" + str(e) + "</p><pre style='white-space:pre-wrap;font-size:12px'>" + tb + "</pre>", 500)
+        app.logger.error('Admin dashboard FATAL: %s\n%s', fatal, tb)
+        errors.append(f"FATAL: {fatal}")
+        # Fall through to error display
+    
+    # Fallback: show a simple HTML page with all errors and basic stats
+    html = f"""
+    <!DOCTYPE html>
+    <html>
+    <head><title>Admin Dashboard (Error Recovery)</title></head>
+    <body style="font-family:sans-serif;padding:20px;max-width:1200px;margin:0 auto;">
+        <h1>⚠️ Admin Dashboard (Partial Load)</h1>
+        <p>Some queries failed, showing what's available:</p>
+        
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:20px;margin:20px 0;">
+            <div style="border:1px solid #ddd;padding:15px;border-radius:8px;">
+                <h3>Products</h3>
+                <p style="font-size:2em;margin:10px 0;">{total_products}</p>
+            </div>
+            <div style="border:1px solid #ddd;padding:15px;border-radius:8px;">
+                <h3>Customers</h3>
+                <p style="font-size:2em;margin:10px 0;">{total_customers}</p>
+            </div>
+            <div style="border:1px solid #ddd;padding:15px;border-radius:8px;">
+                <h3>Sales</h3>
+                <p style="font-size:2em;margin:10px 0;">{total_sales}</p>
+            </div>
+            <div style="border:1px solid #ddd;padding:15px;border-radius:8px;">
+                <h3>Pending Payments</h3>
+                <p style="font-size:2em;margin:10px 0;">{pending_payments}</p>
+            </div>
+        </div>
+        
+        <h2>Quick Links</h2>
+        <div style="margin:20px 0;">
+            <a href="/admin/products" style="display:inline-block;padding:10px 20px;background:#007bff;color:white;text-decoration:none;border-radius:5px;margin:5px;">Products</a>
+            <a href="/admin/customers" style="display:inline-block;padding:10px 20px;background:#007bff;color:white;text-decoration:none;border-radius:5px;margin:5px;">Customers</a>
+            <a href="/ledger" style="display:inline-block;padding:10px 20px;background:#007bff;color:white;text-decoration:none;border-radius:5px;margin:5px;">Ledger</a>
+            <a href="/trips" style="display:inline-block;padding:10px 20px;background:#007bff;color:white;text-decoration:none;border-radius:5px;margin:5px;">Trips</a>
+            <a href="/sales_report" style="display:inline-block;padding:10px 20px;background:#007bff;color:white;text-decoration:none;border-radius:5px;margin:5px;">Reports</a>
+            <a href="/admin/health" style="display:inline-block;padding:10px 20px;background:#28a745;color:white;text-decoration:none;border-radius:5px;margin:5px;">Health Check</a>
+        </div>
+        
+        {"<h2 style='color:red;'>Errors Encountered:</h2><ul>" + "".join(f"<li><code>{e}</code></li>" for e in errors) + "</ul>" if errors else "<p style='color:green;'>✅ All queries successful!</p>"}
+        
+        <hr style="margin:40px 0;">
+        <p><a href="/">← Back to Home</a> | <a href="/logout">Logout</a></p>
+    </body>
+    </html>
+    """
+    return html
 
 @app.route('/admin/debug/db')
 @login_required
