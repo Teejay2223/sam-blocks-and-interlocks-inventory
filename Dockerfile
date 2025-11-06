@@ -23,12 +23,14 @@ RUN pip install --upgrade pip && pip install -r /app/requirements.txt
 # Copy source
 COPY . /app
 
+# Make start script executable
+RUN chmod +x /app/start.sh
+
 # Expose port
 EXPOSE 5000
 
 # Default env (can be overridden at runtime)
 ENV FLASK_ENV=production
 
-# Recommended command: use gunicorn for production
-# Use shell form to properly expand PORT variable
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT app:app --workers 3 --log-level info"]
+# Use the start script which properly handles PORT variable
+CMD ["/app/start.sh"]
