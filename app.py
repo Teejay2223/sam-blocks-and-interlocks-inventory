@@ -709,12 +709,22 @@ def admin_dashboard():
                             low_materials=low_materials)
     except Exception as e:
         app.logger.exception(f"/admin failed, rendering safe fallback: {e}")
-        try:
-            total_products = db.execute("SELECT COUNT(*) as c FROM products").fetchone()['c']
-        except Exception:
-            total_products = 0
-        # Reuse a simple page instead of erroring
-        return render_template('index.html', total_products=total_products, total_orders=0, total_customers=0)
+        # Provide minimal metrics for the safe template
+        def safe_count(sql):
+            try:
+                row = db.execute(sql).fetchone()
+                return (row['c'] if isinstance(row, dict) else row[0]) if row is not None else 0
+            except Exception:
+                return 0
+        total_products = safe_count("SELECT COUNT(*) as c FROM products")
+        total_customers = safe_count("SELECT COUNT(*) as c FROM customers")
+        total_sales = safe_count("SELECT COUNT(*) as c FROM sales")
+        pending_payments = safe_count("SELECT COUNT(*) as c FROM payments WHERE status = 'Pending'")
+        return render_template('admin/dashboard_simple.html',
+                               total_products=total_products,
+                               total_customers=total_customers,
+                               total_sales=total_sales,
+                               pending_payments=pending_payments)
 
 
 # --- CSV export/import for products

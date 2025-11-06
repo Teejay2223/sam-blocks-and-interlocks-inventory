@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Admin Dashboard (Safe){% endblock %}
+{% block content %}
+<div class="container mt-4">
+  <h3 class="mb-3">Admin Dashboard (Safe mode)</h3>
+  <p class="text-muted">This simplified view is shown due to a template error in the full dashboard. All core data remains accessible.</p>
+  <div class="row g-3">
+    <div class="col-md-3">
+      <div class="card p-3">
+        <h6>Total Products</h6>
+        <div class="h4">{{ total_products }}</div>
+        <a class="btn btn-sm btn-primary" href="{{ url_for('admin_products') }}">Manage</a>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card p-3">
+        <h6>Total Customers</h6>
+        <div class="h4">{{ total_customers }}</div>
+        <a class="btn btn-sm btn-secondary" href="{{ url_for('admin_customers') }}">View</a>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card p-3">
+        <h6>Total Sales</h6>
+        <div class="h4">{{ total_sales }}</div>
+        <a class="btn btn-sm btn-info" href="{{ url_for('admin_sales') }}">Details</a>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card p-3">
+        <h6>Pending Payments</h6>
+        <div class="h4">{{ pending_payments }}</div>
+        <a class="btn btn-sm btn-warning" href="{{ url_for('payments_list') }}">Payments</a>
+      </div>
+    </div>
+  </div>
+  <div class="mt-4">
+    <a class="btn btn-outline-primary me-2" href="{{ url_for('ledger') }}">Ledger</a>
+    <a class="btn btn-outline-secondary me-2" href="{{ url_for('trips') }}">Trips</a>
+    <a class="btn btn-outline-success me-2" href="{{ url_for('sales_report') }}">Reports</a>
+  </div>
+</div>
+{% endblock %}
