@@ -375,13 +375,18 @@ def admin_required(func):
 # --- Routes ---
 @app.route('/')
 def index():
+    # Show welcome page for anonymous users
+    if not current_user.is_authenticated:
+        return render_template('welcome.html')
+    
     # if a customer is logged in, send them to their dashboard
     try:
-        if current_user.is_authenticated and getattr(current_user, 'role', '').lower() == 'customer':
+        if getattr(current_user, 'role', '').lower() == 'customer':
             return redirect(url_for('customer_dashboard'))
     except Exception:
         pass
-    # quick stats for dashboard cards (for anonymous or admin view)
+    
+    # Admin dashboard: show quick stats
     db = get_db()
     total_products = db.execute('SELECT COUNT(*) AS c FROM products').fetchone()['c']
     total_orders = db.execute('SELECT COUNT(*) AS c FROM orders').fetchone()['c']
