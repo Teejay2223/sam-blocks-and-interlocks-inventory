@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}Ledger{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>📒 Ledger</h2>
+        <a href="{{ url_for('ledger_add') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Add Entry
+        </a>
+    </div>
+
+    {% if entries %}
+    <div class="table-responsive">
+        <table class="table table-hover table-bordered">
+            <thead class="table-dark">
+                <tr>
+                    <th>S/N</th>
+                    <th>Date</th>
+                    <th>Description</th>
+                    <th>Qty In</th>
+                    <th>Qty Out</th>
+                    <th>Amount (₦)</th>
+                    <th>Balance (₦)</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in entries %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ entry.date }}</td>
+                    <td>{{ entry.description }}</td>
+                    <td class="text-success fw-bold">{{ entry.qty_in if entry.qty_in > 0 else '-' }}</td>
+                    <td class="text-danger fw-bold">{{ entry.qty_out if entry.qty_out > 0 else '-' }}</td>
+                    <td class="{% if entry.amount >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        {{ '{:,.2f}'.format(entry.amount) }}
+                    </td>
+                    <td class="fw-bold {% if entry.balance >= 0 %}text-success{% else %}text-danger{% endif %}">
+                        {{ '{:,.2f}'.format(entry.balance) }}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('ledger_edit', id=entry.id) }}" class="btn btn-sm btn-warning">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                        <form method="POST" action="{{ url_for('ledger_delete', id=entry.id) }}" 
+                              style="display:inline;" 
+                              onsubmit="return confirm('Are you sure you want to delete this entry?');">
+                            <button type="submit" class="btn btn-sm btn-danger">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot class="table-light">
+                <tr>
+                    <td colspan="6" class="text-end fw-bold">Current Balance:</td>
+                    <td colspan="2" class="fw-bold text-success fs-5">
+                        ₦{{ '{:,.2f}'.format(entries[0].balance if entries else 0) }}
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+    {% else %}
+    <div class="alert alert-info">
+        <i class="bi bi-info-circle"></i> No ledger entries yet. Click "Add Entry" to get started.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

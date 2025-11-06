@@ -232,6 +232,24 @@ def init_db():
         ''')
     except Exception:
         pass
+    
+    # ensure ledger table exists
+    try:
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS ledger (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                description TEXT NOT NULL,
+                qty_in INTEGER DEFAULT 0,
+                qty_out INTEGER DEFAULT 0,
+                amount REAL DEFAULT 0,
+                balance REAL DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                created_by TEXT
+            )
+        ''')
+    except Exception:
+        pass
     # ensure audit log table exists
     try:
         db.execute('''
@@ -1339,6 +1357,127 @@ def seed_demo_sales():
     db.commit()
     flash('Demo sales inserted', 'success')
     return redirect(url_for('sales_report'))
+
+# --- Ledger Routes ---
+@app.route('/ledger')
+@login_required
+@admin_only
+def ledger():
+    db = get_db()
+    entries = db.execute('''
+        SELECT * FROM ledger 
+        ORDER BY date DESC, id DESC
+    ''').fetchall()
+    return render_template('ledger.html', entries=entries)
+
+@app.route('/ledger/add', methods=['GET', 'POST'])
+@login_required
+@admin_only
+def ledger_add():
+    if request.method == 'POST':
+        date = request.form['date']
+        description = request.form['description']
+        qty_in = request.form.get('qty_in', 0) or 0
+        qty_out = request.form.get('qty_out', 0) or 0
+        amount = request.form.get('amount', 0) or 0
+        
+        db = get_db()
+        
+        # Calculate new balance based on previous balance
+        last_entry = db.execute('SELECT balance FROM ledger ORDER BY date DESC, id DESC LIMIT 1').fetchone()
+        previous_balance = last_entry['balance'] if last_entry else 0
+        new_balance = previous_balance + float(amount)
+        
+        # Insert new entry
+        db.execute('''
+            INSERT INTO ledger (date, description, qty_in, qty_out, amount, balance, created_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        ''', (date, description, int(qty_in), int(qty_out), float(amount), new_balance, current_user.username))
+        db.commit()
+        
+        flash('Ledger entry added successfully', 'success')
+        return redirect(url_for('ledger'))
+    
+    return render_template('ledger_add.html')
+
+@app.route('/ledger/edit/<int:id>', methods=['GET', 'POST'])
+@login_required
+@admin_only
+def ledger_edit(id):
+    db = get_db()
+    entry = db.execute('SELECT * FROM ledger WHERE id = ?', (id,)).fetchone()
+    
+    if not entry:
+        flash('Entry not found', 'danger')
+        return redirect(url_for('ledger'))
+    
+    if request.method == 'POST':
+        date = request.form['date']
+        description = request.form['description']
+        qty_in = request.form.get('qty_in', 0) or 0
+        qty_out = request.form.get('qty_out', 0) or 0
+        amount = request.form.get('amount', 0) or 0
+        
+        # Recalculate balance for this entry and all subsequent entries
+        # Get previous entry before this one
+        prev_entry = db.execute('''
+            SELECT balance FROM ledger 
+            WHERE date < ? OR (date = ? AND id < ?)
+            ORDER BY date DESC, id DESC LIMIT 1
+        ''', (date, date, id)).fetchone()
+        
+        previous_balance = prev_entry['balance'] if prev_entry else 0
+        new_balance = previous_balance + float(amount)
+        
+        # Update the entry
+        db.execute('''
+            UPDATE ledger 
+            SET date = ?, description = ?, qty_in = ?, qty_out = ?, amount = ?, balance = ?
+            WHERE id = ?
+        ''', (date, description, int(qty_in), int(qty_out), float(amount), new_balance, id))
+        
+        # Recalculate all subsequent balances
+        subsequent = db.execute('''
+            SELECT id, amount FROM ledger 
+            WHERE date > ? OR (date = ? AND id > ?)
+            ORDER BY date ASC, id ASC
+        ''', (date, date, id)).fetchall()
+        
+        current_balance = new_balance
+        for row in subsequent:
+            current_balance += row['amount']
+            db.execute('UPDATE ledger SET balance = ? WHERE id = ?', (current_balance, row['id']))
+        
+        db.commit()
+        flash('Ledger entry updated successfully', 'success')
+        return redirect(url_for('ledger'))
+    
+    return render_template('ledger_edit.html', entry=entry)
+
+@app.route('/ledger/delete/<int:id>', methods=['POST'])
+@login_required
+@admin_only
+def ledger_delete(id):
+    db = get_db()
+    entry = db.execute('SELECT * FROM ledger WHERE id = ?', (id,)).fetchone()
+    
+    if entry:
+        # Delete the entry
+        db.execute('DELETE FROM ledger WHERE id = ?', (id,))
+        
+        # Recalculate all balances after this entry
+        entries = db.execute('SELECT id, amount FROM ledger ORDER BY date ASC, id ASC').fetchall()
+        balance = 0
+        for row in entries:
+            balance += row['amount']
+            db.execute('UPDATE ledger SET balance = ? WHERE id = ?', (balance, row['id']))
+        
+        db.commit()
+        flash('Ledger entry deleted successfully', 'success')
+    else:
+        flash('Entry not found', 'danger')
+    
+    return redirect(url_for('ledger'))
 
 # Health route
 @app.route('/ping')
