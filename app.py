@@ -1485,6 +1485,14 @@ def sales_report():
     day_totals = [r['total'] for r in rows_d]
     return render_template('sales.html', months=months, totals=totals, days=days, day_totals=day_totals)
 
+# Backward-compat: legacy link name used in old templates
+@app.route('/financial_reports')
+@login_required
+@admin_required
+def financial_reports():
+    # Redirect old/legacy endpoint to the new sales report page
+    return redirect(url_for('sales_report'))
+
 # Utility route to insert demo sales (for presentation only)
 @app.route('/admin/seed_demo_sales')
 @login_required

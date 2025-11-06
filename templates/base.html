@@ -12,7 +12,7 @@
         <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
             <div class="container">
                 <a class="navbar-brand d-flex align-items-center" href="{{ url_for('index') }}">
-                    <img src="{{ url_for('static', filename='sam.jpg') }}" alt="logo" style="height:40px; margin-right:8px;">
+                    <img src="{{ url_for('static', filename='logo.png') }}" alt="logo" style="height:40px; margin-right:8px;">
                     <span>S.A.M Blocks and Interlocks</span>
                 </a>
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#nav"><span class="navbar-toggler-icon"></span></button>
@@ -25,8 +25,6 @@
                             {% if role == 'admin' %}
                                 <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_dashboard') }}">Admin</a></li>
                                 <li class="nav-item"><a class="nav-link" href="{{ url_for('ledger') }}">Ledger</a></li>
-                                <li class="nav-item"><a class="nav-link" href="{{ url_for('financial_reports') }}">Finance</a></li>
-                                <li class="nav-item"><a class="nav-link" href="{{ url_for('notifications_panel') }}">Notifications</a></li>
                                 <li class="nav-item"><a class="nav-link" href="{{ url_for('trips') }}">Trips</a></li>
                                 <li class="nav-item"><a class="nav-link" href="{{ url_for('notes') }}">Notes</a></li>
                                 <li class="nav-item"><a class="nav-link" href="{{ url_for('sales_report') }}">Reports</a></li>
