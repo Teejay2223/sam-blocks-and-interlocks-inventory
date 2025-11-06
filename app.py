@@ -7,12 +7,23 @@ from flask import (Flask, g, render_template, request, redirect, url_for,
             flash, jsonify)
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from flask_mail import Mail, Message
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev-secret-change-this'
 app.config['DATABASE'] = os.path.join(BASE_DIR, 'database.db')
+
+# Mail configuration
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = True
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', 'samventuresblocksinterlocks@gmail.com')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')  # Set via environment variable
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'samventuresblocksinterlocks@gmail.com')
+
+mail = Mail(app)
 
 # Startup check: warn if DATABASE_URL is obviously a placeholder so users
 # running locally don't get confusing psycopg2 connection errors.
@@ -389,6 +400,116 @@ def admin_required(func):
             return redirect(url_for('login'))
         return func(*args, **kwargs)
     return wrapper
+
+# --- Notification Helper Functions ---
+def send_email_notification(to_email, subject, body_html, body_text=None):
+    """Send email notification to a recipient"""
+    try:
+        msg = Message(subject=subject,
+                     recipients=[to_email],
+                     html=body_html,
+                     body=body_text or body_html)
+        mail.send(msg)
+        return True
+    except Exception as e:
+        app.logger.error(f"Failed to send email to {to_email}: {str(e)}")
+        return False
+
+def notify_low_stock():
+    """Check and notify admin about low stock items"""
+    db = get_db()
+    low_products = db.execute("SELECT name, qty, reorder_level FROM products WHERE qty <= reorder_level").fetchall()
+    
+    if low_products:
+        items_list = "<ul>"
+        for p in low_products:
+            items_list += f"<li><strong>{p['name']}</strong>: {p['qty']} units (reorder at {p['reorder_level']})</li>"
+        items_list += "</ul>"
+        
+        body = f"""
+        <html>
+        <body>
+            <h2>⚠️ Low Stock Alert</h2>
+            <p>The following products are running low:</p>
+            {items_list}
+            <p>Please reorder these items soon.</p>
+            <p>Best regards,<br>S.A.M Blocks Inventory System</p>
+        </body>
+        </html>
+        """
+        
+        return send_email_notification(
+            'samventuresblocksinterlocks@gmail.com',
+            '⚠️ Low Stock Alert - Action Required',
+            body
+        )
+    return True
+
+def notify_new_order(order_id, customer_email, customer_name):
+    """Notify customer about new order"""
+    body = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif;">
+        <h2>✅ Order Confirmation</h2>
+        <p>Dear {customer_name},</p>
+        <p>Your order <strong>#{order_id}</strong> has been received successfully!</p>
+        <p>We will process your order and notify you once it's ready for delivery.</p>
+        <p>You can track your order status in your dashboard.</p>
+        <hr>
+        <p>Thank you for choosing S.A.M Blocks & Interlocks!</p>
+        <p>Best regards,<br><strong>S.A.M Blocks Team</strong></p>
+    </body>
+    </html>
+    """
+    
+    return send_email_notification(
+        customer_email,
+        f'Order Confirmation - #{order_id}',
+        body
+    )
+
+def notify_payment_received(order_id, customer_email, customer_name, amount):
+    """Notify customer about payment received"""
+    body = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif;">
+        <h2>💰 Payment Received</h2>
+        <p>Dear {customer_name},</p>
+        <p>We have received your payment of <strong>₦{amount:,.2f}</strong> for Order <strong>#{order_id}</strong>.</p>
+        <p>Thank you for your payment!</p>
+        <hr>
+        <p>Best regards,<br><strong>S.A.M Blocks Team</strong></p>
+    </body>
+    </html>
+    """
+    
+    return send_email_notification(
+        customer_email,
+        f'Payment Received - Order #{order_id}',
+        body
+    )
+
+def notify_payment_reminder(order_id, customer_email, customer_name, outstanding):
+    """Send payment reminder to customer"""
+    body = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif;">
+        <h2>💳 Payment Reminder</h2>
+        <p>Dear {customer_name},</p>
+        <p>This is a friendly reminder that you have an outstanding balance of <strong>₦{outstanding:,.2f}</strong> for Order <strong>#{order_id}</strong>.</p>
+        <p>Please arrange payment at your earliest convenience.</p>
+        <p>If you have any questions, please don't hesitate to contact us.</p>
+        <hr>
+        <p>Best regards,<br><strong>S.A.M Blocks Team</strong></p>
+    </body>
+    </html>
+    """
+    
+    return send_email_notification(
+        customer_email,
+        f'Payment Reminder - Order #{order_id}',
+        body
+    )
 
 # --- Routes ---
 @app.route('/')
@@ -1665,6 +1786,79 @@ def financial_reports():
                          monthly_data=monthly_data,
                          monthly_expenses=monthly_expenses,
                          top_products=top_products)
+
+# --- Notification Management Routes ---
+@app.route('/admin/notifications')
+@login_required
+@admin_required
+def notifications_panel():
+    """Admin panel for managing notifications"""
+    return render_template('admin/notifications.html')
+
+@app.route('/admin/notifications/test-email', methods=['POST'])
+@login_required
+@admin_required
+def test_email():
+    """Send test email"""
+    email = request.form.get('email', current_user.email)
+    result = send_email_notification(
+        email,
+        'Test Email from S.A.M Blocks Inventory',
+        '<h2>✅ Test Email</h2><p>This is a test email from your inventory system. Everything is working!</p>'
+    )
+    if result:
+        flash(f'Test email sent successfully to {email}', 'success')
+    else:
+        flash('Failed to send test email. Check your email configuration.', 'danger')
+    return redirect(url_for('notifications_panel'))
+
+@app.route('/admin/notifications/check-low-stock', methods=['POST'])
+@login_required
+@admin_required
+def check_low_stock():
+    """Manually check and send low stock notifications"""
+    result = notify_low_stock()
+    if result:
+        flash('Low stock notification sent successfully', 'success')
+    else:
+        flash('No low stock items or failed to send notification', 'info')
+    return redirect(url_for('notifications_panel'))
+
+@app.route('/admin/notifications/send-reminders', methods=['POST'])
+@login_required
+@admin_required
+def send_payment_reminders():
+    """Send payment reminders to customers with outstanding balances"""
+    db = get_db()
+    customers_with_debt = db.execute("""
+        SELECT DISTINCT c.id, c.name, c.email, 
+               SUM(o.total) - COALESCE(SUM(p.amount), 0) as outstanding
+        FROM customers c
+        JOIN orders o ON c.id = o.customer_id
+        LEFT JOIN payments p ON o.id = p.order_id
+        GROUP BY c.id, c.name, c.email
+        HAVING outstanding > 0
+    """).fetchall()
+    
+    sent_count = 0
+    for customer in customers_with_debt:
+        # Get their most recent unpaid order
+        order = db.execute("""
+            SELECT o.id FROM orders o
+            LEFT JOIN payments p ON o.id = p.order_id
+            WHERE o.customer_id = ?
+            GROUP BY o.id
+            HAVING SUM(o.total) > COALESCE(SUM(p.amount), 0)
+            ORDER BY o.order_date DESC
+            LIMIT 1
+        """, (customer['id'],)).fetchone()
+        
+        if order:
+            if notify_payment_reminder(order['id'], customer['email'], customer['name'], customer['outstanding']):
+                sent_count += 1
+    
+    flash(f'Payment reminders sent to {sent_count} customers', 'success')
+    return redirect(url_for('notifications_panel'))
 
 # Health route
 @app.route('/ping')
