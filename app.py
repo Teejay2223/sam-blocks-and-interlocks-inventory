@@ -7,7 +7,24 @@ from flask import (Flask, g, render_template, request, redirect, url_for,
             flash, jsonify)
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_mail import Mail, Message
+"""Application main module.
+
+Adds a graceful fallback if Flask-Mail is not installed so the app
+still runs (admin dashboard, etc.) without crashing. Email sending
+functions will simply no-op and return False when mail support is
+unavailable or not configured. This prevents ModuleNotFoundError
+when a user runs `python app.py` outside the virtual environment.
+"""
+
+try:
+    from flask_mail import Mail, Message  # type: ignore
+    MAIL_AVAILABLE = True
+except ModuleNotFoundError:
+    MAIL_AVAILABLE = False
+    Mail = None  # type: ignore
+    Message = object  # fallback placeholder
+    # We defer creating a mail instance until after app init; if unavailable
+    # we log a warning later.
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -23,7 +40,11 @@ app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', 'samventuresblocks
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')  # Set via environment variable
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'samventuresblocksinterlocks@gmail.com')
 
-mail = Mail(app)
+if MAIL_AVAILABLE:
+    mail = Mail(app)
+else:
+    mail = None  # type: ignore
+    app.logger.warning("Flask-Mail not installed; email notifications disabled. Install with 'pip install Flask-Mail' or activate your virtual environment.")
 
 # Startup check: warn if DATABASE_URL is obviously a placeholder so users
 # running locally don't get confusing psycopg2 connection errors.
