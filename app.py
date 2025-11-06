@@ -1183,8 +1183,8 @@ def customer_dashboard():
     db = get_db()
     role = getattr(current_user, 'role', '').lower()
     if role == 'admin':
-        # Admin dashboard could be more elaborate; redirect to admin products for now
-        return redirect(url_for('admin_products'))
+        # Admin dashboard could be more elaborate; redirect to admin dashboard
+        return redirect(url_for('admin_dashboard'))
 
     # find customer id
     customer = db.execute('SELECT * FROM customers WHERE email = ?', (current_user.email,)).fetchone()
@@ -1193,10 +1193,55 @@ def customer_dashboard():
         return redirect(url_for('products'))
 
     cust_id = customer['id']
+    
+    # Enhanced customer statistics
     total_products = db.execute('SELECT COUNT(*) as c FROM products').fetchone()['c']
     my_orders = db.execute('SELECT COUNT(*) as c FROM orders WHERE customer_id = ?', (cust_id,)).fetchone()['c']
     my_payments = db.execute("SELECT COUNT(*) as c FROM payments p JOIN orders o ON p.order_id = o.id WHERE o.customer_id = ?", (cust_id,)).fetchone()['c']
-    return render_template('customer_dashboard.html', total_products=total_products, my_orders=my_orders, my_payments=my_payments)
+    
+    # Total spent
+    total_spent = db.execute("SELECT COALESCE(SUM(total), 0) as sum FROM orders WHERE customer_id = ?", (cust_id,)).fetchone()['sum']
+    
+    # Total paid
+    total_paid = db.execute("""
+        SELECT COALESCE(SUM(p.amount), 0) as sum 
+        FROM payments p 
+        JOIN orders o ON p.order_id = o.id 
+        WHERE o.customer_id = ?
+    """, (cust_id,)).fetchone()['sum']
+    
+    # Outstanding balance
+    outstanding = total_spent - total_paid
+    
+    # Recent orders
+    recent_orders = db.execute("""
+        SELECT id, order_date, status, total 
+        FROM orders 
+        WHERE customer_id = ? 
+        ORDER BY order_date DESC 
+        LIMIT 5
+    """, (cust_id,)).fetchall()
+    
+    # Recent payments
+    recent_payments = db.execute("""
+        SELECT p.id, p.amount, p.date_paid, p.status, o.id as order_id
+        FROM payments p
+        JOIN orders o ON p.order_id = o.id
+        WHERE o.customer_id = ?
+        ORDER BY p.date_paid DESC
+        LIMIT 5
+    """, (cust_id,)).fetchall()
+    
+    return render_template('customer_dashboard.html', 
+                         total_products=total_products, 
+                         my_orders=my_orders, 
+                         my_payments=my_payments,
+                         total_spent=total_spent,
+                         total_paid=total_paid,
+                         outstanding=outstanding,
+                         recent_orders=recent_orders,
+                         recent_payments=recent_payments,
+                         customer=customer)
 
 @app.route('/orders')
 @login_required
