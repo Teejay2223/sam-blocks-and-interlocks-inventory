@@ -156,7 +156,7 @@ def init_db():
             cur = db.execute("SELECT * FROM users WHERE username = %s", ('admin',))
             if cur.fetchone() is None:
                 db.execute("INSERT INTO users (username, email, password, role) VALUES (%s, %s, %s, %s)",
-                           ('admin', 'samventuresblocksinterlocks@gmail.com', generate_password_hash('admin123'), 'admin'))
+                        ('admin', 'samventuresblocksinterlocks@gmail.com', generate_password_hash('Sam1991@'), 'admin'))
             db.execute("UPDATE users SET email = %s WHERE username = %s", ('samventuresblocksinterlocks@gmail.com', 'admin'))
             db.commit()
         except Exception:
@@ -211,7 +211,7 @@ def init_db():
         cur = db.execute("SELECT * FROM users WHERE username = ?", ('admin',))
         if cur.fetchone() is None:
             db.execute("INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)",
-                    ('admin', 'samventuresblocksinterlocks@gmail.com', generate_password_hash('Mato1991#'), 'admin'))
+                    ('admin', 'samventuresblocksinterlocks@gmail.com', generate_password_hash('Sam1991@'), 'admin'))
         db.execute("UPDATE users SET email = ? WHERE username = ?", ('samventuresblocksinterlocks@gmail.com', 'admin'))
     except Exception:
         pass
