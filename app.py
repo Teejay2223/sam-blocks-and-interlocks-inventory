@@ -404,6 +404,11 @@ def admin_required(func):
 # --- Notification Helper Functions ---
 def send_email_notification(to_email, subject, body_html, body_text=None):
     """Send email notification to a recipient"""
+    # Skip if no email password configured
+    if not app.config.get('MAIL_PASSWORD'):
+        app.logger.warning(f"Email not sent to {to_email} - MAIL_PASSWORD not configured")
+        return False
+    
     try:
         msg = Message(subject=subject,
                      recipients=[to_email],
