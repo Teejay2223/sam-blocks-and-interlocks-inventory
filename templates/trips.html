@@ -20,6 +20,17 @@
 	{% endfor %}
 </ul>
 
+<div class="card p-3 mb-3">
+    <form method="GET" action="" class="row g-2">
+        <div class="col-md-3">
+            <input name="vehicle_no" class="form-control" placeholder="Search Vehicle No..." value="{{ request.args.get('vehicle_no', '') }}">
+        </div>
+        <div class="col-md-3">
+            <button type="submit" class="btn btn-primary">Search</button>
+        </div>
+    </form>
+</div>
+
 <h5 class="mt-4">All Trips</h5>
 <table class="table">
 	<thead>
