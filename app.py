@@ -499,31 +499,64 @@ def admin_products():
 @login_required
 @admin_required
 def admin_dashboard():
-    db = get_db()
-    def safe_count(sql, params=()):
+    try:
+        db = get_db()
+        app.logger.info('Admin dashboard using DB connection type: %s', type(db))
+        def safe_count(sql, params=()):
+            try:
+                row = db.execute(sql, params).fetchone()
+                return row['c'] if row and 'c' in row.keys() else 0
+            except Exception as e:
+                app.logger.warning('Count query failed (%s): %s', sql, e)
+                return 0
+        total_products = safe_count("SELECT COUNT(*) as c FROM products")
+        total_customers = safe_count("SELECT COUNT(*) as c FROM customers")
+        total_sales = safe_count("SELECT COUNT(*) as c FROM sales")
+        pending_payments = safe_count("SELECT COUNT(*) as c FROM payments WHERE status = 'Pending'")
         try:
-            row = db.execute(sql, params).fetchone()
-            return row['c'] if row and 'c' in row.keys() else 0
+            low_products = db.execute("SELECT id, name, qty, reorder_level FROM products WHERE qty <= reorder_level ORDER BY qty ASC").fetchall()
         except Exception as e:
-            app.logger.warning('Count query failed (%s): %s', sql, e)
-            return 0
-    total_products = safe_count("SELECT COUNT(*) as c FROM products")
-    total_customers = safe_count("SELECT COUNT(*) as c FROM customers")
-    total_sales = safe_count("SELECT COUNT(*) as c FROM sales")
-    pending_payments = safe_count("SELECT COUNT(*) as c FROM payments WHERE status = 'Pending'")
-    try:
-        low_products = db.execute("SELECT id, name, qty, reorder_level FROM products WHERE qty <= reorder_level ORDER BY qty ASC").fetchall()
+            app.logger.warning('Low products query failed: %s', e)
+            low_products = []
+        try:
+            low_materials = db.execute("SELECT id, name, qty, reorder_level FROM raw_materials WHERE qty <= reorder_level ORDER BY qty ASC").fetchall()
+        except Exception as e:
+            app.logger.warning('Low raw materials query failed: %s', e)
+            low_materials = []
+        return render_template('admin/dashboard.html', total_products=total_products, total_customers=total_customers,
+                            total_sales=total_sales, pending_payments=pending_payments,
+                            low_products=low_products, low_materials=low_materials)
     except Exception as e:
-        app.logger.warning('Low products query failed: %s', e)
-        low_products = []
+        import traceback
+        tb = traceback.format_exc()
+        app.logger.error('Admin dashboard fatal error: %s\n%s', e, tb)
+        return ("<h2>Admin dashboard error</h2><p>" + str(e) + "</p><pre style='white-space:pre-wrap;font-size:12px'>" + tb + "</pre>", 500)
+
+@app.route('/admin/debug/db')
+@login_required
+@admin_required
+def admin_debug_db():
+    db = get_db()
+    info = {"ok": True, "tables": []}
     try:
-        low_materials = db.execute("SELECT id, name, qty, reorder_level FROM raw_materials WHERE qty <= reorder_level ORDER BY qty ASC").fetchall()
+        tables = db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
+        info['tables'] = [t['name'] for t in tables]
+    except Exception:
+        # For Postgres fallback
+        try:
+            pg_tables = db.execute("SELECT tablename FROM pg_catalog.pg_tables WHERE schemaname='public'").fetchall()
+            info['tables'] = [t['tablename'] for t in pg_tables]
+        except Exception as e:
+            info['ok'] = False
+            info['error'] = str(e)
+    # sample user row
+    try:
+        user_row = db.execute("SELECT id, username, role FROM users LIMIT 1").fetchone()
+        if user_row:
+            info['sample_user'] = {k: user_row[k] for k in user_row.keys() if k in ('id','username','role')}
     except Exception as e:
-        app.logger.warning('Low raw materials query failed: %s', e)
-        low_materials = []
-    return render_template('admin/dashboard.html', total_products=total_products, total_customers=total_customers,
-                        total_sales=total_sales, pending_payments=pending_payments,
-                        low_products=low_products, low_materials=low_materials)
+        info.setdefault('errors', {})['sample_user'] = str(e)
+    return jsonify(info), (200 if info.get('ok') else 500)
 
 
 # --- CSV export/import for products
