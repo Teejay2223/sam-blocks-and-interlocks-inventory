@@ -618,7 +618,7 @@ def admin_dashboard():
             <a href="/admin/customers" style="display:inline-block;padding:10px 20px;background:#007bff;color:white;text-decoration:none;border-radius:5px;margin:5px;">Customers</a>
             <a href="/ledger" style="display:inline-block;padding:10px 20px;background:#007bff;color:white;text-decoration:none;border-radius:5px;margin:5px;">Ledger</a>
             <a href="/trips" style="display:inline-block;padding:10px 20px;background:#007bff;color:white;text-decoration:none;border-radius:5px;margin:5px;">Trips</a>
-            <a href="/sales_report" style="display:inline-block;padding:10px 20px;background:#007bff;color:white;text-decoration:none;border-radius:5px;margin:5px;">Reports</a>
+            <a href="/sales" style="display:inline-block;padding:10px 20px;background:#007bff;color:white;text-decoration:none;border-radius:5px;margin:5px;">Reports</a>
             <a href="/admin/health" style="display:inline-block;padding:10px 20px;background:#28a745;color:white;text-decoration:none;border-radius:5px;margin:5px;">Health Check</a>
         </div>
         

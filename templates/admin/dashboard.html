@@ -1,354 +1,81 @@
 {% extends 'base.html' %}
 {% block title %}Admin Dashboard{% endblock %}
 {% block content %}
+<h3 class="mb-3">Admin Dashboard</h3>
 
-<div class="container-fluid mt-3"><h3>Admin Dashboard</h3>
-
-  <h3 class="mb-4"><i class="bi bi-speedometer2"></i> Admin Dashboard</h3><div class="row gy-3">
-
-    <div class="col-md-3"><div class="card p-3"><h5>Total products</h5><p class="h4">{{ total_products }}</p><a class="btn btn-sm btn-primary" href="{{ url_for('admin_products') }}">Products</a></div></div>
-
-  <!-- Financial KPI Cards -->  <div class="col-md-3"><div class="card p-3"><h5>Total customers</h5><p class="h4">{{ total_customers }}</p><a class="btn btn-sm btn-primary" href="{{ url_for('admin_customers') }}">Customers</a></div></div>
-
-  <div class="row g-3 mb-4">  <div class="col-md-3"><div class="card p-3"><h5>Total sales</h5><p class="h4">{{ total_sales }}</p><a class="btn btn-sm btn-primary" href="{{ url_for('admin_sales') }}">Sales</a></div></div>
-
-    <div class="col-md-3">  <div class="col-md-3"><div class="card p-3"><h5>Pending payments</h5><p class="h4">{{ pending_payments }}</p><a class="btn btn-sm btn-primary" href="{{ url_for('payments_list') }}">Payments</a></div></div>
-
-      <div class="card border-primary shadow-sm"></div>
-
-        <div class="card-body">
-
-          <h6 class="text-muted">Total Revenue</h6><div class="row mt-3">
-
-          <h3 class="text-primary">₦{{ '{:,.2f}'.format(total_revenue) }}</h3>  <div class="col-md-3"><a class="btn btn-outline-secondary w-100 mb-2" href="{{ url_for('admin_raw_materials') }}">Raw Materials</a></div>
-
-          <small class="text-success"><i class="bi bi-arrow-up"></i> From sales</small>  <div class="col-md-3"><a class="btn btn-outline-secondary w-100 mb-2" href="{{ url_for('trips') }}">Trips</a></div>
-
-        </div>  <div class="col-md-3"><a class="btn btn-outline-secondary w-100 mb-2" href="{{ url_for('sales_report') }}">Sales Report</a></div>
-
-      </div>  <div class="col-md-3"><a class="btn btn-outline-secondary w-100 mb-2" href="{{ url_for('admin_routes') }}">All Routes</a></div>
-
-    </div></div>
-
-    <div class="col-md-3"><div class="row mt-3">
-
-      <div class="card border-danger shadow-sm">  <div class="col-md-3"><a class="btn btn-outline-primary w-100 mb-2" href="{{ url_for('admin_audit') }}">Audit Log</a></div>
-
-        <div class="card-body">  <div class="col-md-3"><a class="btn btn-outline-primary w-100 mb-2" href="{{ url_for('admin_reconciliation') }}">Reconciliation</a></div>
-
-          <h6 class="text-muted">Total Expenses</h6></div>
-
-          <h3 class="text-danger">₦{{ '{:,.2f}'.format(total_expenses) }}</h3>
-
-          <small class="text-muted"><i class="bi bi-truck"></i> From trips</small><div class="row mt-4">
-
-        </div>  <div class="col-md-6">
-
-      </div>    <h5>Low stock products</h5>
-
-    </div>    {% if low_products %}
-
-    <div class="col-md-3">      <ul class="list-group">
-
-      <div class="card border-success shadow-sm">      {% for p in low_products %}
-
-        <div class="card-body">        <li class="list-group-item d-flex justify-content-between align-items-center">{{ p.name }} <span class="badge bg-danger">{{ p.qty }} (reorder {{ p.reorder_level }})</span></li>
-
-          <h6 class="text-muted">Net Profit</h6>      {% endfor %}
-
-          <h3 class="text-success">₦{{ '{:,.2f}'.format(total_revenue - total_expenses) }}</h3>      </ul>
-
-          <small class="text-muted"><i class="bi bi-calculator"></i> Revenue - Expenses</small>    {% else %}
-
-        </div>      <div class="alert alert-success">No low stock products</div>
-
-      </div>    {% endif %}
-
-    </div>  </div>
-
-    <div class="col-md-3">  <div class="col-md-6">
-
-      <div class="card border-info shadow-sm">    <h5>Low raw materials</h5>
-
-        <div class="card-body">    {% if low_materials %}
-
-          <h6 class="text-muted">Ledger Balance</h6>      <ul class="list-group">
-
-          <h3 class="text-info">₦{{ '{:,.2f}'.format(current_balance) }}</h3>      {% for m in low_materials %}
-
-          <small class="text-muted"><i class="bi bi-wallet2"></i> Current balance</small>        <li class="list-group-item d-flex justify-content-between align-items-center">{{ m.name }} <span class="badge bg-danger">{{ m.qty }} (reorder {{ m.reorder_level }})</span></li>
-
-        </div>      {% endfor %}
-
-      </div>      </ul>
-
-    </div>    {% else %}
-
-  </div>      <div class="alert alert-success">No low raw materials</div>
-
-    {% endif %}
-
-  <!-- Stats Cards -->  </div>
-
-  <div class="row g-3 mb-4"></div>
-
-      <div class="col-md-3">
-      <div class="card shadow-sm">
-        <div class="card-body text-center">
-          <i class="bi bi-box-seam fs-1 text-primary"></i>
-          <h5 class="mt-2">Total Products</h5>
-          <h2 class="text-primary">{{ total_products }}</h2>
-          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('admin_products') }}">Manage</a>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card shadow-sm">
-        <div class="card-body text-center">
-          <i class="bi bi-people fs-1 text-success"></i>
-          <h5 class="mt-2">Total Customers</h5>
-          <h2 class="text-success">{{ total_customers }}</h2>
-          <a class="btn btn-sm btn-outline-success" href="{{ url_for('admin_customers') }}">View</a>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card shadow-sm">
-        <div class="card-body text-center">
-          <i class="bi bi-cart-check fs-1 text-info"></i>
-          <h5 class="mt-2">Total Sales</h5>
-          <h2 class="text-info">{{ total_sales }}</h2>
-          <a class="btn btn-sm btn-outline-info" href="{{ url_for('admin_sales') }}">Details</a>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-3">
-      <div class="card shadow-sm">
-        <div class="card-body text-center">
-          <i class="bi bi-credit-card fs-1 text-warning"></i>
-          <h5 class="mt-2">Pending Payments</h5>
-          <h2 class="text-warning">{{ pending_payments }}</h2>
-          <p class="text-muted mb-2">₦{{ '{:,.2f}'.format(pending_payment_amount) }}</p>
-          <a class="btn btn-sm btn-outline-warning" href="{{ url_for('payments_list') }}">View</a>
-        </div>
-      </div>
+<!-- Minimal, no charts; only safe counts and links -->
+<div class="row gy-3">
+  <div class="col-md-3">
+    <div class="card p-3 h-100">
+      <h6 class="text-muted">Total products</h6>
+      <div class="display-6">{{ total_products or 0 }}</div>
+      <a class="btn btn-sm btn-primary mt-2" href="{{ url_for('admin_products') }}">Manage</a>
     </div>
   </div>
-
-  <!-- Charts Row -->
-  <div class="row g-3 mb-4">
-    <div class="col-md-8">
-      <div class="card shadow-sm">
-        <div class="card-header bg-primary text-white">
-          <h5 class="mb-0"><i class="bi bi-graph-up"></i> Sales Trend (Last 7 Days)</h5>
-        </div>
-        <div class="card-body">
-          <canvas id="salesTrendChart" height="80"></canvas>
-        </div>
-      </div>
-    </div>
-    <div class="col-md-4">
-      <div class="card shadow-sm">
-        <div class="card-header bg-success text-white">
-          <h5 class="mb-0"><i class="bi bi-pie-chart"></i> Top Products</h5>
-        </div>
-        <div class="card-body">
-          <canvas id="topProductsChart"></canvas>
-        </div>
-      </div>
+  <div class="col-md-3">
+    <div class="card p-3 h-100">
+      <h6 class="text-muted">Total customers</h6>
+      <div class="display-6">{{ total_customers or 0 }}</div>
+      <a class="btn btn-sm btn-primary mt-2" href="{{ url_for('admin_customers') }}">Manage</a>
     </div>
   </div>
-
-  <!-- Recent Orders & Alerts Row -->
-  <div class="row g-3 mb-4">
-    <div class="col-md-6">
-      <div class="card shadow-sm">
-        <div class="card-header bg-info text-white">
-          <h5 class="mb-0"><i class="bi bi-clock-history"></i> Recent Orders</h5>
-        </div>
-        <div class="card-body">
-          {% if recent_orders %}
-          <div class="table-responsive">
-            <table class="table table-sm table-hover">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Customer</th>
-                  <th>Date</th>
-                  <th>Total</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for order in recent_orders %}
-                <tr>
-                  <td>#{{ order.id }}</td>
-                  <td>{{ order.customer_name }}</td>
-                  <td>{{ order.order_date[:10] }}</td>
-                  <td>₦{{ '{:,.2f}'.format(order.total) }}</td>
-                  <td>
-                    <span class="badge bg-{{ 'success' if order.status == 'Completed' else 'warning' }}">
-                      {{ order.status }}
-                    </span>
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          {% else %}
-          <p class="text-muted">No recent orders</p>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-
-    <div class="col-md-6">
-      <div class="card shadow-sm">
-        <div class="card-header bg-warning text-dark">
-          <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Low Stock Alerts</h5>
-        </div>
-        <div class="card-body">
-          {% if low_products or low_materials %}
-          <h6 class="text-danger">Products:</h6>
-          {% if low_products %}
-          <ul class="list-group mb-3">
-            {% for p in low_products[:5] %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              {{ p.name }}
-              <span class="badge bg-danger">{{ p.qty }}/{{ p.reorder_level }}</span>
-            </li>
-            {% endfor %}
-          </ul>
-          {% else %}
-          <p class="text-success small">✓ All products in stock</p>
-          {% endif %}
-
-          <h6 class="text-danger">Raw Materials:</h6>
-          {% if low_materials %}
-          <ul class="list-group">
-            {% for m in low_materials[:5] %}
-            <li class="list-group-item d-flex justify-content-between align-items-center">
-              {{ m.name }}
-              <span class="badge bg-danger">{{ m.qty }}/{{ m.reorder_level }}</span>
-            </li>
-            {% endfor %}
-          </ul>
-          {% else %}
-          <p class="text-success small">✓ All materials in stock</p>
-          {% endif %}
-          {% else %}
-          <p class="text-success"><i class="bi bi-check-circle"></i> No low stock items!</p>
-          {% endif %}
-        </div>
-      </div>
+  <div class="col-md-3">
+    <div class="card p-3 h-100">
+      <h6 class="text-muted">Total sales</h6>
+      <div class="display-6">{{ total_sales or 0 }}</div>
+      <a class="btn btn-sm btn-primary mt-2" href="{{ url_for('admin_sales') }}">Manage</a>
     </div>
   </div>
-
-  <!-- Quick Actions -->
-  <div class="row g-3 mb-4">
-    <div class="col-md-12">
-      <div class="card shadow-sm">
-        <div class="card-header bg-dark text-white">
-          <h5 class="mb-0"><i class="bi bi-lightning"></i> Quick Actions</h5>
-        </div>
-        <div class="card-body">
-          <div class="row g-2">
-            <div class="col-md-2"><a class="btn btn-outline-primary w-100" href="{{ url_for('admin_products') }}"><i class="bi bi-box"></i> Products</a></div>
-            <div class="col-md-2"><a class="btn btn-outline-success w-100" href="{{ url_for('admin_sales') }}"><i class="bi bi-cart"></i> Sales</a></div>
-            <div class="col-md-2"><a class="btn btn-outline-info w-100" href="{{ url_for('ledger') }}"><i class="bi bi-book"></i> Ledger</a></div>
-            <div class="col-md-2"><a class="btn btn-outline-warning w-100" href="{{ url_for('trips') }}"><i class="bi bi-truck"></i> Trips</a></div>
-            <div class="col-md-2"><a class="btn btn-outline-danger w-100" href="{{ url_for('admin_raw_materials') }}"><i class="bi bi-layers"></i> Materials</a></div>
-            <div class="col-md-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('sales_report') }}"><i class="bi bi-file-earmark-bar-graph"></i> Reports</a></div>
-          </div>
-        </div>
-      </div>
+  <div class="col-md-3">
+    <div class="card p-3 h-100">
+      <h6 class="text-muted">Pending payments</h6>
+      <div class="display-6">{{ pending_payments or 0 }}</div>
+      <a class="btn btn-sm btn-primary mt-2" href="{{ url_for('payments_list') }}">Manage</a>
     </div>
   </div>
 </div>
 
-<!-- Chart.js -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-// Sales Trend Chart
-const salesCtx = document.getElementById('salesTrendChart').getContext('2d');
-const salesData = {
-  labels: [
-    {% for s in sales_trend %}'{{ s.sale_date }}'{% if not loop.last %},{% endif %}{% endfor %}
-  ],
-  datasets: [{
-    label: 'Sales Amount (₦)',
-    data: [{% for s in sales_trend %}{{ s.total }}{% if not loop.last %},{% endif %}{% endfor %}],
-    borderColor: 'rgb(75, 192, 192)',
-    backgroundColor: 'rgba(75, 192, 192, 0.2)',
-    tension: 0.4,
-    fill: true
-  }]
-};
-new Chart(salesCtx, {
-  type: 'line',
-  data: salesData,
-  options: {
-    responsive: true,
-    maintainAspectRatio: true,
-    plugins: {
-      legend: { display: true },
-      tooltip: {
-        callbacks: {
-          label: function(context) {
-            return '₦' + context.parsed.y.toLocaleString();
-          }
-        }
-      }
-    },
-    scales: {
-      y: {
-        beginAtZero: true,
-        ticks: {
-          callback: function(value) {
-            return '₦' + value.toLocaleString();
-          }
-        }
-      }
-    }
-  }
-});
+<h5 class="mt-4">Quick Links</h5>
+<div class="row gy-2">
+  <div class="col-md-3"><a class="btn btn-outline-secondary w-100" href="{{ url_for('admin_raw_materials') }}">Raw Materials</a></div>
+  <div class="col-md-3"><a class="btn btn-outline-secondary w-100" href="{{ url_for('trips') }}">Trips</a></div>
+  <div class="col-md-3"><a class="btn btn-outline-secondary w-100" href="{{ url_for('sales_report') }}">Sales Report</a></div>
+  <div class="col-md-3"><a class="btn btn-outline-secondary w-100" href="{{ url_for('admin_routes') }}">All Routes</a></div>
+  <div class="col-md-3"><a class="btn btn-outline-secondary w-100" href="{{ url_for('admin_audit') }}">Audit Log</a></div>
+  <div class="col-md-3"><a class="btn btn-outline-secondary w-100" href="{{ url_for('admin_reconciliation') }}">Reconciliation</a></div>
+  <div class="col-md-3"><a class="btn btn-outline-success w-100" href="{{ url_for('admin_health') }}">Health Check</a></div>
+</div>
 
-// Top Products Pie Chart
-const productsCtx = document.getElementById('topProductsChart').getContext('2d');
-const productsData = {
-  labels: [
-    {% for p in top_products %}'{{ p.name }}'{% if not loop.last %},{% endif %}{% endfor %}
-  ],
-  datasets: [{
-    data: [{% for p in top_products %}{{ p.total_qty }}{% if not loop.last %},{% endif %}{% endfor %}],
-    backgroundColor: [
-      'rgba(255, 99, 132, 0.8)',
-      'rgba(54, 162, 235, 0.8)',
-      'rgba(255, 206, 86, 0.8)',
-      'rgba(75, 192, 192, 0.8)',
-      'rgba(153, 102, 255, 0.8)'
-    ],
-    borderWidth: 2
-  }]
-};
-new Chart(productsCtx, {
-  type: 'doughnut',
-  data: productsData,
-  options: {
-    responsive: true,
-    maintainAspectRatio: true,
-    plugins: {
-      legend: { position: 'bottom' },
-      tooltip: {
-        callbacks: {
-          label: function(context) {
-            return context.label + ': ' + context.parsed + ' units';
-          }
-        }
-      }
-    }
-  }
-});
-</script>
+<div class="row mt-4">
+  <div class="col-md-6">
+    <h6>Low stock products</h6>
+    {% if low_products %}
+      <ul class="list-group">
+      {% for p in low_products %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          {{ p['name'] if 'name' in p.keys() else p.name }}
+          <span class="badge bg-danger">{{ (p['qty'] if 'qty' in p.keys() else p.qty) or 0 }} (reorder {{ (p['reorder_level'] if 'reorder_level' in p.keys() else p.reorder_level) or 0 }})</span>
+        </li>
+      {% endfor %}
+      </ul>
+    {% else %}
+      <div class="alert alert-success mb-0">No low stock products</div>
+    {% endif %}
+  </div>
+  <div class="col-md-6">
+    <h6>Low raw materials</h6>
+    {% if low_materials %}
+      <ul class="list-group">
+      {% for m in low_materials %}
+        <li class="list-group-item d-flex justify-content-between align-items-center">
+          {{ m['name'] if 'name' in m.keys() else m.name }}
+          <span class="badge bg-danger">{{ (m['qty'] if 'qty' in m.keys() else m.qty) or 0 }} (reorder {{ (m['reorder_level'] if 'reorder_level' in m.keys() else m.reorder_level) or 0 }})</span>
+        </li>
+      {% endfor %}
+      </ul>
+    {% else %}
+      <div class="alert alert-success mb-0">No low raw materials</div>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}
