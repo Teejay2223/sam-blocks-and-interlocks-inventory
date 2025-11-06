@@ -1555,6 +1555,18 @@ def admin_health():
             status['ok'] = False
     return jsonify(status), (200 if status.get('ok') else 500)
 
+# Minimal admin-only endpoint to isolate decorator/auth vs DB/template issues
+@app.route('/admin/min')
+@login_required
+@admin_required
+def admin_min():
+    try:
+        role = getattr(current_user, 'role', None)
+        return f"admin ok (user={getattr(current_user, 'username', '?')}, role={role})"
+    except Exception as e:
+        import traceback
+        return ("admin min error: " + str(e) + "\n" + traceback.format_exc(), 500)
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # Use Railway's port
     app.run(host="0.0.0.0", port=port)
