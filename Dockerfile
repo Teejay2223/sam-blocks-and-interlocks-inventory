@@ -31,4 +31,4 @@ ENV FLASK_ENV=production
 ENV PORT=5000
 
 # Recommended command: use gunicorn for production
-CMD ["gunicorn", "-b", "0.0.0.0:5000", "app:app", "--workers", "3", "--log-level", "info"]
+CMD ["sh", "-c", "gunicorn -b 0.0.0.0:${PORT} app:app --workers 3 --log-level info"]
