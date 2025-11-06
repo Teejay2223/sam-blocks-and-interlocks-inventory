@@ -7,44 +7,12 @@ from flask import (Flask, g, render_template, request, redirect, url_for,
             flash, jsonify)
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
-"""Application main module.
-
-Adds a graceful fallback if Flask-Mail is not installed so the app
-still runs (admin dashboard, etc.) without crashing. Email sending
-functions will simply no-op and return False when mail support is
-unavailable or not configured. This prevents ModuleNotFoundError
-when a user runs `python app.py` outside the virtual environment.
-"""
-
-try:
-    from flask_mail import Mail, Message  # type: ignore
-    MAIL_AVAILABLE = True
-except ModuleNotFoundError:
-    MAIL_AVAILABLE = False
-    Mail = None  # type: ignore
-    Message = object  # fallback placeholder
-    # We defer creating a mail instance until after app init; if unavailable
-    # we log a warning later.
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev-secret-change-this'
 app.config['DATABASE'] = os.path.join(BASE_DIR, 'database.db')
-
-# Mail configuration
-app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
-app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', 'samventuresblocksinterlocks@gmail.com')
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')  # Set via environment variable
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'samventuresblocksinterlocks@gmail.com')
-
-if MAIL_AVAILABLE:
-    mail = Mail(app)
-else:
-    mail = None  # type: ignore
-    app.logger.warning("Flask-Mail not installed; email notifications disabled. Install with 'pip install Flask-Mail' or activate your virtual environment.")
 
 # Startup check: warn if DATABASE_URL is obviously a placeholder so users
 # running locally don't get confusing psycopg2 connection errors.
@@ -180,19 +148,21 @@ def init_db():
         try:
             with open('schema_pg.sql', 'r', encoding='utf-8') as f:
                 db.executescript(f.read())
-        except Exception:
-            pass
+            app.logger.info('Applied PostgreSQL schema successfully')
+        except Exception as e:
+            app.logger.exception('Failed to apply PostgreSQL schema: %s', e)
 
         # create demo admin if not exists (upsert style)
         try:
-            cur = db.execute("SELECT * FROM users WHERE username = %s", ('admin',))
+            # Use sqlite-style placeholders and let wrapper convert to %s for consistency
+            cur = db.execute("SELECT * FROM users WHERE username = ?", ('admin',))
             if cur.fetchone() is None:
-                db.execute("INSERT INTO users (username, email, password, role) VALUES (%s, %s, %s, %s)",
+                db.execute("INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)",
                         ('admin', 'samventuresblocksinterlocks@gmail.com', generate_password_hash('Sam1991@'), 'admin'))
-            db.execute("UPDATE users SET email = %s WHERE username = %s", ('samventuresblocksinterlocks@gmail.com', 'admin'))
+            db.execute("UPDATE users SET email = ? WHERE username = ?", ('samventuresblocksinterlocks@gmail.com', 'admin'))
             db.commit()
-        except Exception:
-            pass
+        except Exception as e:
+            app.logger.exception('Failed to seed/ensure admin user in Postgres: %s', e)
         return
 
     # SQLite path: keep previous behavior and safe PRAGMA-based migrations
@@ -422,121 +392,6 @@ def admin_required(func):
         return func(*args, **kwargs)
     return wrapper
 
-# --- Notification Helper Functions ---
-def send_email_notification(to_email, subject, body_html, body_text=None):
-    """Send email notification to a recipient"""
-    # Skip if no email password configured
-    if not app.config.get('MAIL_PASSWORD'):
-        app.logger.warning(f"Email not sent to {to_email} - MAIL_PASSWORD not configured")
-        return False
-    
-    try:
-        msg = Message(subject=subject,
-                     recipients=[to_email],
-                     html=body_html,
-                     body=body_text or body_html)
-        mail.send(msg)
-        return True
-    except Exception as e:
-        app.logger.error(f"Failed to send email to {to_email}: {str(e)}")
-        return False
-
-def notify_low_stock():
-    """Check and notify admin about low stock items"""
-    db = get_db()
-    low_products = db.execute("SELECT name, qty, reorder_level FROM products WHERE qty <= reorder_level").fetchall()
-    
-    if low_products:
-        items_list = "<ul>"
-        for p in low_products:
-            items_list += f"<li><strong>{p['name']}</strong>: {p['qty']} units (reorder at {p['reorder_level']})</li>"
-        items_list += "</ul>"
-        
-        body = f"""
-        <html>
-        <body>
-            <h2>⚠️ Low Stock Alert</h2>
-            <p>The following products are running low:</p>
-            {items_list}
-            <p>Please reorder these items soon.</p>
-            <p>Best regards,<br>S.A.M Blocks Inventory System</p>
-        </body>
-        </html>
-        """
-        
-        return send_email_notification(
-            'samventuresblocksinterlocks@gmail.com',
-            '⚠️ Low Stock Alert - Action Required',
-            body
-        )
-    return True
-
-def notify_new_order(order_id, customer_email, customer_name):
-    """Notify customer about new order"""
-    body = f"""
-    <html>
-    <body style="font-family: Arial, sans-serif;">
-        <h2>✅ Order Confirmation</h2>
-        <p>Dear {customer_name},</p>
-        <p>Your order <strong>#{order_id}</strong> has been received successfully!</p>
-        <p>We will process your order and notify you once it's ready for delivery.</p>
-        <p>You can track your order status in your dashboard.</p>
-        <hr>
-        <p>Thank you for choosing S.A.M Blocks & Interlocks!</p>
-        <p>Best regards,<br><strong>S.A.M Blocks Team</strong></p>
-    </body>
-    </html>
-    """
-    
-    return send_email_notification(
-        customer_email,
-        f'Order Confirmation - #{order_id}',
-        body
-    )
-
-def notify_payment_received(order_id, customer_email, customer_name, amount):
-    """Notify customer about payment received"""
-    body = f"""
-    <html>
-    <body style="font-family: Arial, sans-serif;">
-        <h2>💰 Payment Received</h2>
-        <p>Dear {customer_name},</p>
-        <p>We have received your payment of <strong>₦{amount:,.2f}</strong> for Order <strong>#{order_id}</strong>.</p>
-        <p>Thank you for your payment!</p>
-        <hr>
-        <p>Best regards,<br><strong>S.A.M Blocks Team</strong></p>
-    </body>
-    </html>
-    """
-    
-    return send_email_notification(
-        customer_email,
-        f'Payment Received - Order #{order_id}',
-        body
-    )
-
-def notify_payment_reminder(order_id, customer_email, customer_name, outstanding):
-    """Send payment reminder to customer"""
-    body = f"""
-    <html>
-    <body style="font-family: Arial, sans-serif;">
-        <h2>💳 Payment Reminder</h2>
-        <p>Dear {customer_name},</p>
-        <p>This is a friendly reminder that you have an outstanding balance of <strong>₦{outstanding:,.2f}</strong> for Order <strong>#{order_id}</strong>.</p>
-        <p>Please arrange payment at your earliest convenience.</p>
-        <p>If you have any questions, please don't hesitate to contact us.</p>
-        <hr>
-        <p>Best regards,<br><strong>S.A.M Blocks Team</strong></p>
-    </body>
-    </html>
-    """
-    
-    return send_email_notification(
-        customer_email,
-        f'Payment Reminder - Order #{order_id}',
-        body
-    )
-
 # --- Routes ---
 @app.route('/')
 def index():
@@ -645,86 +500,30 @@ def admin_products():
 @admin_required
 def admin_dashboard():
     db = get_db()
+    def safe_count(sql, params=()):
+        try:
+            row = db.execute(sql, params).fetchone()
+            return row['c'] if row and 'c' in row.keys() else 0
+        except Exception as e:
+            app.logger.warning('Count query failed (%s): %s', sql, e)
+            return 0
+    total_products = safe_count("SELECT COUNT(*) as c FROM products")
+    total_customers = safe_count("SELECT COUNT(*) as c FROM customers")
+    total_sales = safe_count("SELECT COUNT(*) as c FROM sales")
+    pending_payments = safe_count("SELECT COUNT(*) as c FROM payments WHERE status = 'Pending'")
     try:
-        # KPIs
-        total_products = db.execute("SELECT COUNT(*) as c FROM products").fetchone()['c']
-        total_customers = db.execute("SELECT COUNT(*) as c FROM customers").fetchone()['c']
-        total_sales = db.execute("SELECT COUNT(*) as c FROM sales").fetchone()['c']
-        pending_payments = db.execute("SELECT COUNT(*) as c FROM payments WHERE status = 'Pending'").fetchone()['c']
-
-        # Financial KPIs
-        total_revenue = db.execute("SELECT COALESCE(SUM(amount), 0) as total FROM sales").fetchone()['total']
-        total_expenses = db.execute("SELECT COALESCE(SUM(amount), 0) as total FROM trips").fetchone()['total']
-        pending_payment_amount = db.execute("SELECT COALESCE(SUM(amount), 0) as total FROM payments WHERE status = 'Pending'").fetchone()['total']
-        ledger_balance = db.execute("SELECT balance FROM ledger ORDER BY date DESC, id DESC LIMIT 1").fetchone()
-        current_balance = ledger_balance['balance'] if ledger_balance else 0
-
-        # Sales trend data (last 7 days)
-        sales_trend = db.execute("""
-            SELECT sale_date, SUM(amount) as total 
-            FROM sales 
-            WHERE sale_date >= date('now', '-7 days')
-            GROUP BY sale_date 
-            ORDER BY sale_date
-        """).fetchall()
-
-        # Top selling products (last 30 days)
-        top_products = db.execute("""
-            SELECT p.name, SUM(s.qty) as total_qty, SUM(s.amount) as total_amount
-            FROM sales s
-            JOIN products p ON s.product_id = p.id
-            WHERE s.sale_date >= date('now', '-30 days')
-            GROUP BY p.id, p.name
-            ORDER BY total_qty DESC
-            LIMIT 5
-        """).fetchall()
-
-        # Recent orders
-        recent_orders = db.execute("""
-            SELECT o.id, o.order_date, o.status, o.total, c.name as customer_name
-            FROM orders o
-            JOIN customers c ON o.customer_id = c.id
-            ORDER BY o.order_date DESC
-            LIMIT 5
-        """).fetchall()
-
-        # low stock products (qty <= reorder_level)
         low_products = db.execute("SELECT id, name, qty, reorder_level FROM products WHERE qty <= reorder_level ORDER BY qty ASC").fetchall()
-        # low raw materials
-        low_materials = db.execute("SELECT id, name, qty, reorder_level FROM raw_materials WHERE qty <= reorder_level ORDER BY qty ASC").fetchall()
-
-        return render_template('admin/dashboard.html', 
-                            total_products=total_products, 
-                            total_customers=total_customers,
-                            total_sales=total_sales, 
-                            pending_payments=pending_payments,
-                            total_revenue=total_revenue,
-                            total_expenses=total_expenses,
-                            pending_payment_amount=pending_payment_amount,
-                            current_balance=current_balance,
-                            sales_trend=sales_trend,
-                            top_products=top_products,
-                            recent_orders=recent_orders,
-                            low_products=low_products, 
-                            low_materials=low_materials)
     except Exception as e:
-        app.logger.exception(f"/admin failed, rendering safe fallback: {e}")
-        # Provide minimal metrics for the safe template
-        def safe_count(sql):
-            try:
-                row = db.execute(sql).fetchone()
-                return (row['c'] if isinstance(row, dict) else row[0]) if row is not None else 0
-            except Exception:
-                return 0
-        total_products = safe_count("SELECT COUNT(*) as c FROM products")
-        total_customers = safe_count("SELECT COUNT(*) as c FROM customers")
-        total_sales = safe_count("SELECT COUNT(*) as c FROM sales")
-        pending_payments = safe_count("SELECT COUNT(*) as c FROM payments WHERE status = 'Pending'")
-        return render_template('admin/dashboard_simple.html',
-                               total_products=total_products,
-                               total_customers=total_customers,
-                               total_sales=total_sales,
-                               pending_payments=pending_payments)
+        app.logger.warning('Low products query failed: %s', e)
+        low_products = []
+    try:
+        low_materials = db.execute("SELECT id, name, qty, reorder_level FROM raw_materials WHERE qty <= reorder_level ORDER BY qty ASC").fetchall()
+    except Exception as e:
+        app.logger.warning('Low raw materials query failed: %s', e)
+        low_materials = []
+    return render_template('admin/dashboard.html', total_products=total_products, total_customers=total_customers,
+                        total_sales=total_sales, pending_payments=pending_payments,
+                        low_products=low_products, low_materials=low_materials)
 
 
 # --- CSV export/import for products
@@ -1349,8 +1148,8 @@ def customer_dashboard():
     db = get_db()
     role = getattr(current_user, 'role', '').lower()
     if role == 'admin':
-        # Admin dashboard could be more elaborate; redirect to admin dashboard
-        return redirect(url_for('admin_dashboard'))
+        # Admin dashboard could be more elaborate; redirect to admin products for now
+        return redirect(url_for('admin_products'))
 
     # find customer id
     customer = db.execute('SELECT * FROM customers WHERE email = ?', (current_user.email,)).fetchone()
@@ -1359,55 +1158,10 @@ def customer_dashboard():
         return redirect(url_for('products'))
 
     cust_id = customer['id']
-    
-    # Enhanced customer statistics
     total_products = db.execute('SELECT COUNT(*) as c FROM products').fetchone()['c']
     my_orders = db.execute('SELECT COUNT(*) as c FROM orders WHERE customer_id = ?', (cust_id,)).fetchone()['c']
     my_payments = db.execute("SELECT COUNT(*) as c FROM payments p JOIN orders o ON p.order_id = o.id WHERE o.customer_id = ?", (cust_id,)).fetchone()['c']
-    
-    # Total spent
-    total_spent = db.execute("SELECT COALESCE(SUM(total), 0) as sum FROM orders WHERE customer_id = ?", (cust_id,)).fetchone()['sum']
-    
-    # Total paid
-    total_paid = db.execute("""
-        SELECT COALESCE(SUM(p.amount), 0) as sum 
-        FROM payments p 
-        JOIN orders o ON p.order_id = o.id 
-        WHERE o.customer_id = ?
-    """, (cust_id,)).fetchone()['sum']
-    
-    # Outstanding balance
-    outstanding = total_spent - total_paid
-    
-    # Recent orders
-    recent_orders = db.execute("""
-        SELECT id, order_date, status, total 
-        FROM orders 
-        WHERE customer_id = ? 
-        ORDER BY order_date DESC 
-        LIMIT 5
-    """, (cust_id,)).fetchall()
-    
-    # Recent payments
-    recent_payments = db.execute("""
-        SELECT p.id, p.amount, p.date_paid, p.status, o.id as order_id
-        FROM payments p
-        JOIN orders o ON p.order_id = o.id
-        WHERE o.customer_id = ?
-        ORDER BY p.date_paid DESC
-        LIMIT 5
-    """, (cust_id,)).fetchall()
-    
-    return render_template('customer_dashboard.html', 
-                         total_products=total_products, 
-                         my_orders=my_orders, 
-                         my_payments=my_payments,
-                         total_spent=total_spent,
-                         total_paid=total_paid,
-                         outstanding=outstanding,
-                         recent_orders=recent_orders,
-                         recent_payments=recent_payments,
-                         customer=customer)
+    return render_template('customer_dashboard.html', total_products=total_products, my_orders=my_orders, my_payments=my_payments)
 
 @app.route('/orders')
 @login_required
@@ -1739,176 +1493,34 @@ def ledger_delete(id):
     
     return redirect(url_for('ledger'))
 
-# --- Financial Reports Routes ---
-@app.route('/financial-reports')
-@login_required
-@admin_required
-def financial_reports():
-    db = get_db()
-    
-    # Get date range from query params
-    from_date = request.args.get('from_date', '')
-    to_date = request.args.get('to_date', '')
-    
-    # If no dates provided, use current month
-    if not from_date:
-        from_date = db.execute("SELECT date('now', 'start of month')").fetchone()[0]
-    if not to_date:
-        to_date = db.execute("SELECT date('now')").fetchone()[0]
-    
-    # Revenue (Sales)
-    revenue_data = db.execute("""
-        SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count
-        FROM sales
-        WHERE sale_date BETWEEN ? AND ?
-    """, (from_date, to_date)).fetchone()
-    
-    # Expenses (Trips)
-    expenses_data = db.execute("""
-        SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count
-        FROM trips
-        WHERE date BETWEEN ? AND ?
-    """, (from_date, to_date)).fetchone()
-    
-    # Profit calculation
-    profit = revenue_data['total'] - expenses_data['total']
-    profit_margin = (profit / revenue_data['total'] * 100) if revenue_data['total'] > 0 else 0
-    
-    # Pending payments
-    pending_payments = db.execute("""
-        SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count
-        FROM payments
-        WHERE status = 'Pending'
-    """).fetchone()
-    
-    # Monthly breakdown
-    monthly_data = db.execute("""
-        SELECT 
-            strftime('%Y-%m', sale_date) as month,
-            SUM(amount) as revenue
-        FROM sales
-        GROUP BY month
-        ORDER BY month DESC
-        LIMIT 12
-    """).fetchall()
-    
-    # Expenses breakdown
-    monthly_expenses = db.execute("""
-        SELECT 
-            strftime('%Y-%m', date) as month,
-            SUM(amount) as expenses
-        FROM trips
-        GROUP BY month
-        ORDER BY month DESC
-        LIMIT 12
-    """).fetchall()
-    
-    # Top selling products in period
-    top_products = db.execute("""
-        SELECT 
-            p.name,
-            SUM(s.qty) as total_qty,
-            SUM(s.amount) as total_revenue
-        FROM sales s
-        JOIN products p ON s.product_id = p.id
-        WHERE s.sale_date BETWEEN ? AND ?
-        GROUP BY p.id, p.name
-        ORDER BY total_revenue DESC
-        LIMIT 10
-    """, (from_date, to_date)).fetchall()
-    
-    return render_template('financial_reports.html',
-                         from_date=from_date,
-                         to_date=to_date,
-                         revenue=revenue_data['total'],
-                         revenue_count=revenue_data['count'],
-                         expenses=expenses_data['total'],
-                         expenses_count=expenses_data['count'],
-                         profit=profit,
-                         profit_margin=profit_margin,
-                         pending_payments=pending_payments['total'],
-                         pending_count=pending_payments['count'],
-                         monthly_data=monthly_data,
-                         monthly_expenses=monthly_expenses,
-                         top_products=top_products)
-
-# --- Notification Management Routes ---
-@app.route('/admin/notifications')
-@login_required
-@admin_required
-def notifications_panel():
-    """Admin panel for managing notifications"""
-    return render_template('admin/notifications.html')
-
-@app.route('/admin/notifications/test-email', methods=['POST'])
-@login_required
-@admin_required
-def test_email():
-    """Send test email"""
-    email = request.form.get('email', current_user.email)
-    result = send_email_notification(
-        email,
-        'Test Email from S.A.M Blocks Inventory',
-        '<h2>✅ Test Email</h2><p>This is a test email from your inventory system. Everything is working!</p>'
-    )
-    if result:
-        flash(f'Test email sent successfully to {email}', 'success')
-    else:
-        flash('Failed to send test email. Check your email configuration.', 'danger')
-    return redirect(url_for('notifications_panel'))
-
-@app.route('/admin/notifications/check-low-stock', methods=['POST'])
-@login_required
-@admin_required
-def check_low_stock():
-    """Manually check and send low stock notifications"""
-    result = notify_low_stock()
-    if result:
-        flash('Low stock notification sent successfully', 'success')
-    else:
-        flash('No low stock items or failed to send notification', 'info')
-    return redirect(url_for('notifications_panel'))
-
-@app.route('/admin/notifications/send-reminders', methods=['POST'])
-@login_required
-@admin_required
-def send_payment_reminders():
-    """Send payment reminders to customers with outstanding balances"""
-    db = get_db()
-    customers_with_debt = db.execute("""
-        SELECT DISTINCT c.id, c.name, c.email, 
-               SUM(o.total) - COALESCE(SUM(p.amount), 0) as outstanding
-        FROM customers c
-        JOIN orders o ON c.id = o.customer_id
-        LEFT JOIN payments p ON o.id = p.order_id
-        GROUP BY c.id, c.name, c.email
-        HAVING outstanding > 0
-    """).fetchall()
-    
-    sent_count = 0
-    for customer in customers_with_debt:
-        # Get their most recent unpaid order
-        order = db.execute("""
-            SELECT o.id FROM orders o
-            LEFT JOIN payments p ON o.id = p.order_id
-            WHERE o.customer_id = ?
-            GROUP BY o.id
-            HAVING SUM(o.total) > COALESCE(SUM(p.amount), 0)
-            ORDER BY o.order_date DESC
-            LIMIT 1
-        """, (customer['id'],)).fetchone()
-        
-        if order:
-            if notify_payment_reminder(order['id'], customer['email'], customer['name'], customer['outstanding']):
-                sent_count += 1
-    
-    flash(f'Payment reminders sent to {sent_count} customers', 'success')
-    return redirect(url_for('notifications_panel'))
-
 # Health route
 @app.route('/ping')
 def ping():
     return "pong"
+
+# Admin health endpoint to verify DB tables exist and counts are retrievable
+@app.route('/admin/health')
+@login_required
+@admin_required
+def admin_health():
+    db = get_db()
+    status = {"ok": True}
+    checks = {
+        "products": "SELECT COUNT(*) as c FROM products",
+        "customers": "SELECT COUNT(*) as c FROM customers",
+        "sales": "SELECT COUNT(*) as c FROM sales",
+        "payments": "SELECT COUNT(*) as c FROM payments",
+        "raw_materials": "SELECT COUNT(*) as c FROM raw_materials"
+    }
+    for key, sql in checks.items():
+        try:
+            row = db.execute(sql).fetchone()
+            status[key] = int(row['c']) if row else 0
+        except Exception as e:
+            status[key] = None
+            status.setdefault('errors', {})[key] = str(e)
+            status['ok'] = False
+    return jsonify(status), (200 if status.get('ok') else 500)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # Use Railway's port

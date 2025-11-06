@@ -128,3 +128,26 @@ INSERT INTO products (id, name, description, size, price, qty) VALUES
 (3, '8-inch Block', 'Load-bearing 8-inch block', '8"', 500, 30) ON CONFLICT DO NOTHING;
 INSERT INTO products (id, name, description, size, price, qty) VALUES
 (4, '9-inch Block', 'Large block for special projects', '9"', 600, 20) ON CONFLICT DO NOTHING;
+
+-- Ledger and generic audit tables used by admin/ledger features
+CREATE TABLE IF NOT EXISTS ledger (
+    id SERIAL PRIMARY KEY,
+    date DATE NOT NULL,
+    description TEXT NOT NULL,
+    qty_in INTEGER DEFAULT 0,
+    qty_out INTEGER DEFAULT 0,
+    amount NUMERIC DEFAULT 0,
+    balance NUMERIC DEFAULT 0,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+    created_by TEXT
+);
+
+CREATE TABLE IF NOT EXISTS generic_audit (
+    id SERIAL PRIMARY KEY,
+    entity TEXT,
+    entity_id INTEGER,
+    user TEXT,
+    action TEXT,
+    details TEXT,
+    timestamp TIMESTAMP WITH TIME ZONE DEFAULT now()
+);
