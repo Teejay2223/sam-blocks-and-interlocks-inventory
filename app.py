@@ -1573,6 +1573,99 @@ def ledger_delete(id):
     
     return redirect(url_for('ledger'))
 
+# --- Financial Reports Routes ---
+@app.route('/financial-reports')
+@login_required
+@admin_required
+def financial_reports():
+    db = get_db()
+    
+    # Get date range from query params
+    from_date = request.args.get('from_date', '')
+    to_date = request.args.get('to_date', '')
+    
+    # If no dates provided, use current month
+    if not from_date:
+        from_date = db.execute("SELECT date('now', 'start of month')").fetchone()[0]
+    if not to_date:
+        to_date = db.execute("SELECT date('now')").fetchone()[0]
+    
+    # Revenue (Sales)
+    revenue_data = db.execute("""
+        SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count
+        FROM sales
+        WHERE sale_date BETWEEN ? AND ?
+    """, (from_date, to_date)).fetchone()
+    
+    # Expenses (Trips)
+    expenses_data = db.execute("""
+        SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count
+        FROM trips
+        WHERE date BETWEEN ? AND ?
+    """, (from_date, to_date)).fetchone()
+    
+    # Profit calculation
+    profit = revenue_data['total'] - expenses_data['total']
+    profit_margin = (profit / revenue_data['total'] * 100) if revenue_data['total'] > 0 else 0
+    
+    # Pending payments
+    pending_payments = db.execute("""
+        SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count
+        FROM payments
+        WHERE status = 'Pending'
+    """).fetchone()
+    
+    # Monthly breakdown
+    monthly_data = db.execute("""
+        SELECT 
+            strftime('%Y-%m', sale_date) as month,
+            SUM(amount) as revenue
+        FROM sales
+        GROUP BY month
+        ORDER BY month DESC
+        LIMIT 12
+    """).fetchall()
+    
+    # Expenses breakdown
+    monthly_expenses = db.execute("""
+        SELECT 
+            strftime('%Y-%m', date) as month,
+            SUM(amount) as expenses
+        FROM trips
+        GROUP BY month
+        ORDER BY month DESC
+        LIMIT 12
+    """).fetchall()
+    
+    # Top selling products in period
+    top_products = db.execute("""
+        SELECT 
+            p.name,
+            SUM(s.qty) as total_qty,
+            SUM(s.amount) as total_revenue
+        FROM sales s
+        JOIN products p ON s.product_id = p.id
+        WHERE s.sale_date BETWEEN ? AND ?
+        GROUP BY p.id, p.name
+        ORDER BY total_revenue DESC
+        LIMIT 10
+    """, (from_date, to_date)).fetchall()
+    
+    return render_template('financial_reports.html',
+                         from_date=from_date,
+                         to_date=to_date,
+                         revenue=revenue_data['total'],
+                         revenue_count=revenue_data['count'],
+                         expenses=expenses_data['total'],
+                         expenses_count=expenses_data['count'],
+                         profit=profit,
+                         profit_margin=profit_margin,
+                         pending_payments=pending_payments['total'],
+                         pending_count=pending_payments['count'],
+                         monthly_data=monthly_data,
+                         monthly_expenses=monthly_expenses,
+                         top_products=top_products)
+
 # Health route
 @app.route('/ping')
 def ping():

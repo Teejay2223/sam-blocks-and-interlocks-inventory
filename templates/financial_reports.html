@@ -1,0 +1,296 @@
+{% extends 'base.html' %}
+{% block title %}Financial Reports{% endblock %}
+{% block content %}
+<div class="container-fluid mt-3">
+  <h3 class="mb-4"><i class="bi bi-graph-up-arrow"></i> Financial Reports & Analysis</h3>
+  
+  <!-- Date Filter -->
+  <div class="card shadow-sm mb-4">
+    <div class="card-header bg-primary text-white">
+      <h5 class="mb-0"><i class="bi bi-calendar-range"></i> Date Range Filter</h5>
+    </div>
+    <div class="card-body">
+      <form method="GET" action="{{ url_for('financial_reports') }}">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="form-label">From Date</label>
+            <input type="date" name="from_date" class="form-control" value="{{ from_date }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">To Date</label>
+            <input type="date" name="to_date" class="form-control" value="{{ to_date }}">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">&nbsp;</label>
+            <button type="submit" class="btn btn-primary w-100">
+              <i class="bi bi-search"></i> Generate Report
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Financial Summary Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-3">
+      <div class="card border-success shadow-sm">
+        <div class="card-body text-center">
+          <i class="bi bi-cash-stack fs-1 text-success"></i>
+          <h6 class="text-muted mt-2">Total Revenue</h6>
+          <h3 class="text-success">₦{{ '{:,.2f}'.format(revenue) }}</h3>
+          <small class="text-muted">{{ revenue_count }} sales</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-danger shadow-sm">
+        <div class="card-body text-center">
+          <i class="bi bi-cash-coin fs-1 text-danger"></i>
+          <h6 class="text-muted mt-2">Total Expenses</h6>
+          <h3 class="text-danger">₦{{ '{:,.2f}'.format(expenses) }}</h3>
+          <small class="text-muted">{{ expenses_count }} trips</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-primary shadow-sm">
+        <div class="card-body text-center">
+          <i class="bi bi-graph-up fs-1 text-primary"></i>
+          <h6 class="text-muted mt-2">Net Profit</h6>
+          <h3 class="{% if profit >= 0 %}text-primary{% else %}text-danger{% endif %}">
+            ₦{{ '{:,.2f}'.format(profit) }}
+          </h3>
+          <small class="text-muted">{{ '{:.1f}'.format(profit_margin) }}% margin</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card border-warning shadow-sm">
+        <div class="card-body text-center">
+          <i class="bi bi-exclamation-circle fs-1 text-warning"></i>
+          <h6 class="text-muted mt-2">Pending Payments</h6>
+          <h3 class="text-warning">₦{{ '{:,.2f}'.format(pending_payments) }}</h3>
+          <small class="text-muted">{{ pending_count}} payments</small>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-8">
+      <div class="card shadow-sm">
+        <div class="card-header bg-info text-white">
+          <h5 class="mb-0"><i class="bi bi-bar-chart-line"></i> Monthly Revenue vs Expenses</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="revenueExpensesChart" height="80"></canvas>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="card shadow-sm">
+        <div class="card-header bg-success text-white">
+          <h5 class="mb-0"><i class="bi bi-pie-chart-fill"></i> Profit Breakdown</h5>
+        </div>
+        <div class="card-body">
+          <canvas id="profitChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Top Products Table -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-12">
+      <div class="card shadow-sm">
+        <div class="card-header bg-dark text-white">
+          <h5 class="mb-0"><i class="bi bi-trophy"></i> Top Selling Products (Selected Period)</h5>
+        </div>
+        <div class="card-body">
+          {% if top_products %}
+          <div class="table-responsive">
+            <table class="table table-hover">
+              <thead>
+                <tr>
+                  <th>Rank</th>
+                  <th>Product Name</th>
+                  <th>Quantity Sold</th>
+                  <th>Total Revenue</th>
+                  <th>Performance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for product in top_products %}
+                <tr>
+                  <td>
+                    {% if loop.index == 1 %}
+                      <span class="badge bg-warning">🥇 #{{ loop.index }}</span>
+                    {% elif loop.index == 2 %}
+                      <span class="badge bg-secondary">🥈 #{{ loop.index }}</span>
+                    {% elif loop.index == 3 %}
+                      <span class="badge bg-danger">🥉 #{{ loop.index }}</span>
+                    {% else %}
+                      <span class="badge bg-light text-dark">#{{ loop.index }}</span>
+                    {% endif %}
+                  </td>
+                  <td><strong>{{ product.name }}</strong></td>
+                  <td>{{ product.total_qty }} units</td>
+                  <td class="text-success"><strong>₦{{ '{:,.2f}'.format(product.total_revenue) }}</strong></td>
+                  <td>
+                    <div class="progress" style="height: 20px;">
+                      <div class="progress-bar bg-success" 
+                           role="progressbar" 
+                           style="width: {{ (product.total_revenue / top_products[0].total_revenue * 100) }}%">
+                        {{ '{:.0f}'.format(product.total_revenue / top_products[0].total_revenue * 100) }}%
+                      </div>
+                    </div>
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <p class="text-muted">No sales data for the selected period.</p>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monthly Summary Table -->
+  <div class="row g-3 mb-4">
+    <div class="col-md-12">
+      <div class="card shadow-sm">
+        <div class="card-header bg-secondary text-white">
+          <h5 class="mb-0"><i class="bi bi-calendar3"></i> Monthly Financial Summary</h5>
+        </div>
+        <div class="card-body">
+          <div class="table-responsive">
+            <table class="table table-striped">
+              <thead>
+                <tr>
+                  <th>Month</th>
+                  <th>Revenue</th>
+                  <th>Expenses</th>
+                  <th>Profit</th>
+                  <th>Profit Margin</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for i in range([monthly_data|length, monthly_expenses|length]|max) %}
+                <tr>
+                  <td><strong>{{ monthly_data[i].month if i < monthly_data|length else monthly_expenses[i].month }}</strong></td>
+                  <td class="text-success">₦{{ '{:,.2f}'.format(monthly_data[i].revenue if i < monthly_data|length else 0) }}</td>
+                  <td class="text-danger">₦{{ '{:,.2f}'.format(monthly_expenses[i].expenses if i < monthly_expenses|length else 0) }}</td>
+                  {% set month_revenue = monthly_data[i].revenue if i < monthly_data|length else 0 %}
+                  {% set month_expense = monthly_expenses[i].expenses if i < monthly_expenses|length else 0 %}
+                  {% set month_profit = month_revenue - month_expense %}
+                  <td class="{% if month_profit >= 0 %}text-primary{% else %}text-danger{% endif %}">
+                    <strong>₦{{ '{:,.2f}'.format(month_profit) }}</strong>
+                  </td>
+                  <td>
+                    {% if month_revenue > 0 %}
+                      {{ '{:.1f}'.format(month_profit / month_revenue * 100) }}%
+                    {% else %}
+                      N/A
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+// Revenue vs Expenses Chart
+const revenueExpensesCtx = document.getElementById('revenueExpensesChart').getContext('2d');
+const months = [{% for m in monthly_data %}'{{ m.month }}'{% if not loop.last %},{% endif %}{% endfor %}];
+const revenueData = [{% for m in monthly_data %}{{ m.revenue }}{% if not loop.last %},{% endif %}{% endfor %}];
+const expensesData = [{% for m in monthly_expenses %}{{ m.expenses }}{% if not loop.last %},{% endif %}{% endfor %}];
+
+new Chart(revenueExpensesCtx, {
+  type: 'bar',
+  data: {
+    labels: months,
+    datasets: [{
+      label: 'Revenue (₦)',
+      data: revenueData,
+      backgroundColor: 'rgba(75, 192, 192, 0.6)',
+      borderColor: 'rgba(75, 192, 192, 1)',
+      borderWidth: 2
+    }, {
+      label: 'Expenses (₦)',
+      data: expensesData,
+      backgroundColor: 'rgba(255, 99, 132, 0.6)',
+      borderColor: 'rgba(255, 99, 132, 1)',
+      borderWidth: 2
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: function(value) {
+            return '₦' + value.toLocaleString();
+          }
+        }
+      }
+    },
+    plugins: {
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            return context.dataset.label + ': ₦' + context.parsed.y.toLocaleString();
+          }
+        }
+      }
+    }
+  }
+});
+
+// Profit Breakdown Pie Chart
+const profitCtx = document.getElementById('profitChart').getContext('2d');
+new Chart(profitCtx, {
+  type: 'doughnut',
+  data: {
+    labels: ['Revenue', 'Expenses', 'Profit'],
+    datasets: [{
+      data: [{{ revenue }}, {{ expenses }}, {{ profit if profit > 0 else 0 }}],
+      backgroundColor: [
+        'rgba(75, 192, 192, 0.8)',
+        'rgba(255, 99, 132, 0.8)',
+        'rgba(54, 162, 235, 0.8)'
+      ],
+      borderWidth: 2
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: true,
+    plugins: {
+      legend: { position: 'bottom' },
+      tooltip: {
+        callbacks: {
+          label: function(context) {
+            return context.label + ': ₦' + context.parsed.toLocaleString();
+          }
+        }
+      }
+    }
+  }
+});
+</script>
+{% endblock %}
