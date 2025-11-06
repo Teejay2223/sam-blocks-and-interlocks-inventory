@@ -386,7 +386,17 @@ def admin_required(func):
     from functools import wraps
     @wraps(func)
     def wrapper(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.role.lower() != 'admin':
+        try:
+            if not current_user.is_authenticated:
+                flash('Login required', 'warning')
+                return redirect(url_for('login'))
+            role = getattr(current_user, 'role', '') or ''
+            if str(role).lower() != 'admin':
+                flash('Admin access required', 'danger')
+                return redirect(url_for('login'))
+        except Exception as e:
+            # Never crash on role checks; fall back to login
+            app.logger.warning('admin_required guard error: %s', e)
             flash('Admin access required', 'danger')
             return redirect(url_for('login'))
         return func(*args, **kwargs)
