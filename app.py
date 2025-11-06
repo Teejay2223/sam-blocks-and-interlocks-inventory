@@ -1361,7 +1361,7 @@ def seed_demo_sales():
 # --- Ledger Routes ---
 @app.route('/ledger')
 @login_required
-@admin_only
+@admin_required
 def ledger():
     db = get_db()
     entries = db.execute('''
@@ -1372,7 +1372,7 @@ def ledger():
 
 @app.route('/ledger/add', methods=['GET', 'POST'])
 @login_required
-@admin_only
+@admin_required
 def ledger_add():
     if request.method == 'POST':
         date = request.form['date']
@@ -1402,7 +1402,7 @@ def ledger_add():
 
 @app.route('/ledger/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
-@admin_only
+@admin_required
 def ledger_edit(id):
     db = get_db()
     entry = db.execute('SELECT * FROM ledger WHERE id = ?', (id,)).fetchone()
@@ -1456,7 +1456,7 @@ def ledger_edit(id):
 
 @app.route('/ledger/delete/<int:id>', methods=['POST'])
 @login_required
-@admin_only
+@admin_required
 def ledger_delete(id):
     db = get_db()
     entry = db.execute('SELECT * FROM ledger WHERE id = ?', (id,)).fetchone()
