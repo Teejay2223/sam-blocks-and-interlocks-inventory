@@ -20,7 +20,9 @@ CREATE TABLE IF NOT EXISTS products (
     name TEXT NOT NULL,
     description TEXT,
     size TEXT,
-    price REAL NOT NULL
+    price REAL NOT NULL,
+    qty INTEGER NOT NULL DEFAULT 0,
+    reorder_level INTEGER NOT NULL DEFAULT 10
 );
 CREATE TABLE IF NOT EXISTS raw_materials (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,8 +63,11 @@ CREATE TABLE IF NOT EXISTS payments (
 );
 CREATE TABLE IF NOT EXISTS sales (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    product_id INTEGER,
+    qty INTEGER NOT NULL DEFAULT 1,
     sale_date TEXT NOT NULL,
-    amount REAL NOT NULL
+    amount REAL NOT NULL,
+    FOREIGN KEY (product_id) REFERENCES products(id)
 );
 CREATE TABLE IF NOT EXISTS trips (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -77,8 +82,18 @@ CREATE TABLE IF NOT EXISTS notes (
     content TEXT NOT NULL,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
-INSERT OR IGNORE INTO products (id, name, description, size, price) VALUES
-(1, 'Standard Block', 'Normal block for general use', '4"', 50),
-(2, '6-inch Block', 'Lightweight partition block', '6"', 450),
-(3, '8-inch Block', 'Load-bearing 8-inch block', '8"', 500),
-(4, '9-inch Block', 'Large block for special projects', '9"', 600);
+CREATE TABLE IF NOT EXISTS ledger (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL,
+    description TEXT NOT NULL,
+    qty_in INTEGER DEFAULT 0,
+    qty_out INTEGER DEFAULT 0,
+    amount REAL NOT NULL,
+    balance REAL NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+INSERT OR IGNORE INTO products (id, name, description, size, price, qty, reorder_level) VALUES
+(1, 'Standard Block', 'Normal block for general use', '4"', 50, 100, 20),
+(2, '6-inch Block', 'Lightweight partition block', '6"', 450, 50, 10),
+(3, '8-inch Block', 'Load-bearing 8-inch block', '8"', 500, 75, 15),
+(4, '9-inch Block', 'Large block for special projects', '9"', 600, 30, 10);
