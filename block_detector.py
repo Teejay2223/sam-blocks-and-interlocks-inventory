@@ -56,27 +56,28 @@ class BlockDetector:
             detections = []
             block_count = 0
             
-            # Process each detection
-            for box in result.boxes:
-                # Get bounding box coordinates
-                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                
-                # Get confidence and class
-                confidence = float(box.conf[0].cpu().numpy())
-                class_id = int(box.cls[0].cpu().numpy())
-                class_name = result.names[class_id]
-                
-                # For block detection, we'll count specific classes
-                # In a real implementation, you'd filter for block-specific classes
-                # For now, we'll count all detected objects as potential blocks
-                detections.append({
-                    'bbox': [float(x1), float(y1), float(x2), float(y2)],
-                    'confidence': confidence,
-                    'class': class_name,
-                    'class_id': class_id
-                })
-                
-                block_count += 1
+            # Process each detection (check if boxes exist)
+            if result.boxes is not None:
+                for box in result.boxes:
+                    # Get bounding box coordinates
+                    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                    
+                    # Get confidence and class
+                    confidence = float(box.conf[0].cpu().numpy())
+                    class_id = int(box.cls[0].cpu().numpy())
+                    class_name = result.names[class_id]
+                    
+                    # For block detection, we'll count specific classes
+                    # In a real implementation, you'd filter for block-specific classes
+                    # For now, we'll count all detected objects as potential blocks
+                    detections.append({
+                        'bbox': [float(x1), float(y1), float(x2), float(y2)],
+                        'confidence': confidence,
+                        'class': class_name,
+                        'class_id': class_id
+                    })
+                    
+                    block_count += 1
             
             # Get annotated image
             annotated_image = result.plot()
@@ -119,20 +120,22 @@ class BlockDetector:
             detections = []
             block_count = 0
             
-            for box in result.boxes:
-                x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
-                confidence = float(box.conf[0].cpu().numpy())
-                class_id = int(box.cls[0].cpu().numpy())
-                class_name = result.names[class_id]
-                
-                detections.append({
-                    'bbox': [float(x1), float(y1), float(x2), float(y2)],
-                    'confidence': confidence,
-                    'class': class_name,
-                    'class_id': class_id
-                })
-                
-                block_count += 1
+            # Process each detection (check if boxes exist)
+            if result.boxes is not None:
+                for box in result.boxes:
+                    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                    confidence = float(box.conf[0].cpu().numpy())
+                    class_id = int(box.cls[0].cpu().numpy())
+                    class_name = result.names[class_id]
+                    
+                    detections.append({
+                        'bbox': [float(x1), float(y1), float(x2), float(y2)],
+                        'confidence': confidence,
+                        'class': class_name,
+                        'class_id': class_id
+                    })
+                    
+                    block_count += 1
             
             # Get annotated image
             annotated_image = result.plot()
