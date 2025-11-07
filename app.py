@@ -4,15 +4,29 @@ import csv
 import io
 from datetime import datetime
 from flask import (Flask, g, render_template, request, redirect, url_for,
-            flash, jsonify)
+            flash, jsonify, send_from_directory)
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev-secret-change-this'
 app.config['DATABASE'] = os.path.join(BASE_DIR, 'database.db')
+
+# Configure upload folders for block detection
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+RESULTS_FOLDER = os.path.join(BASE_DIR, 'static', 'detection_results')
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
+
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['RESULTS_FOLDER'] = RESULTS_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Create directories if they don't exist
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+os.makedirs(RESULTS_FOLDER, exist_ok=True)
 
 # Startup check: warn if DATABASE_URL is obviously a placeholder so users
 # running locally don't get confusing psycopg2 connection errors.
@@ -1673,6 +1687,90 @@ def admin_min():
     except Exception as e:
         import traceback
         return ("admin min error: " + str(e) + "\n" + traceback.format_exc(), 500)
+
+# --- Block Detection Routes ---
+def allowed_file(filename):
+    """Check if uploaded file has allowed extension"""
+    return '.' in filename and \
+           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route('/detect', methods=['GET', 'POST'])
+@login_required
+def block_detection():
+    """Block detection page"""
+    if request.method == 'GET':
+        return render_template('block_detection.html')
+    
+    # Handle POST - file upload for detection
+    if 'file' not in request.files:
+        flash('No file uploaded', 'danger')
+        return redirect(request.url)
+    
+    file = request.files['file']
+    
+    if file.filename == '':
+        flash('No file selected', 'danger')
+        return redirect(request.url)
+    
+    if file and allowed_file(file.filename):
+        try:
+            # Import block detector (lazy import to avoid loading model on startup)
+            from block_detector import BlockDetector
+            
+            # Save uploaded file
+            filename = secure_filename(file.filename)
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            unique_filename = f"{timestamp}_{filename}"
+            filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+            file.save(filepath)
+            
+            # Initialize detector
+            detector = BlockDetector(confidence_threshold=0.25)
+            
+            # Perform detection
+            results = detector.detect_blocks(filepath)
+            
+            if results['success']:
+                # Save annotated image
+                result_filename = f"result_{unique_filename}"
+                result_path = os.path.join(app.config['RESULTS_FOLDER'], result_filename)
+                detector.save_annotated_image(results['annotated_image'], result_path)
+                
+                # Store results in session or return them
+                flash(f"Detection complete! Found {results['count']} blocks.", 'success')
+                
+                return render_template('block_detection.html', 
+                                     results=results,
+                                     result_image=f"detection_results/{result_filename}",
+                                     original_image=unique_filename)
+            else:
+                flash(f"Detection failed: {results['message']}", 'danger')
+                return redirect(request.url)
+                
+        except Exception as e:
+            flash(f"Error processing image: {str(e)}", 'danger')
+            return redirect(request.url)
+    else:
+        flash('Invalid file type. Please upload an image file (png, jpg, jpeg, gif, bmp).', 'danger')
+        return redirect(request.url)
+
+@app.route('/detect/history')
+@login_required
+def detection_history():
+    """View detection history"""
+    # List all result images
+    results_folder = app.config['RESULTS_FOLDER']
+    if os.path.exists(results_folder):
+        result_files = [f for f in os.listdir(results_folder) if f.startswith('result_')]
+        result_files.sort(reverse=True)  # Most recent first
+        return render_template('detection_history.html', results=result_files)
+    return render_template('detection_history.html', results=[])
+
+@app.route('/uploads/<filename>')
+@login_required
+def uploaded_file(filename):
+    """Serve uploaded files"""
+    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # Use Railway's port

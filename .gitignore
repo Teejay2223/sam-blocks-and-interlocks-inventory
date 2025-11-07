@@ -20,3 +20,14 @@ env/
 # pytest / caches
 .pytest_cache/
 .cache/
+
+# Uploads and detection results
+uploads/
+static/detection_results/
+
+# ML Models
+*.pt
+*.pth
+*.onnx
+runs/
+weights/

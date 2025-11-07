@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}Detection History - S.A.M Blocks and Interlocks{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-12">
+            <h1 class="mb-4">Detection History</h1>
+            <p class="lead">View your previous block detection results.</p>
+            
+            <div class="mb-3">
+                <a href="{{ url_for('block_detection') }}" class="btn btn-primary">
+                    <i class="bi bi-plus-circle"></i> New Detection
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+        {% if results %}
+            {% for result_file in results %}
+            <div class="col-md-4 mb-4">
+                <div class="card">
+                    <img src="{{ url_for('static', filename='detection_results/' + result_file) }}" 
+                         class="card-img-top" 
+                         alt="Detection result"
+                         style="height: 250px; object-fit: cover;">
+                    <div class="card-body">
+                        <h6 class="card-title">{{ result_file.replace('result_', '').replace('_', ' ') }}</h6>
+                        <p class="card-text small text-muted">
+                            Detection result from uploaded image
+                        </p>
+                        <a href="{{ url_for('static', filename='detection_results/' + result_file) }}" 
+                           class="btn btn-sm btn-outline-primary" 
+                           target="_blank">
+                            View Full Size
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="col-md-12">
+                <div class="alert alert-info">
+                    <h5 class="alert-heading">No Detection History</h5>
+                    <p>You haven't performed any block detections yet.</p>
+                    <hr>
+                    <p class="mb-0">
+                        <a href="{{ url_for('block_detection') }}" class="btn btn-primary">
+                            Start Your First Detection
+                        </a>
+                    </p>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
