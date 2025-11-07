@@ -8,6 +8,7 @@ This repository contains the SAM Blocks & Interlocks Inventory application, deve
 ## Key features
 - Register and manage SAM blocks and interlocks
 - Search, filter, and export inventory lists
+- **AI-Powered Block Detection**: Upload images to automatically detect and count blocks using computer vision
 - Simple web UI (HTML + Python backend)
 - Dockerfile and Procfile for deployment
 
@@ -70,9 +71,10 @@ Adjust according to the actual layout in the repo.
 1. Add a new item: Navigate to Add Item and fill in details (serial, type, location, status).
 2. Search: Use the search box to find items by serial or description.
 3. Export: Export inventory to CSV for reporting.
+4. **Block Detection**: Upload an image to automatically detect and count blocks (see [BLOCK_DETECTION.md](BLOCK_DETECTION.md) for details).
 
 ## For assessment (suggested contents to prepare)
-- Short demo video (3–5 minutes) showing add/search/export flows
+- Short demo video (3–5 minutes) showing add/search/export/block-detection flows
 - README with architecture and run instructions (this file)
 - Documented test cases and expected results
 
