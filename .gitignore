@@ -7,6 +7,9 @@ __pycache__/
 *.db
 database.db
 
+# Uploads folder
+uploads/
+
 # Virtualenvs
 .venv/
 venv/

@@ -4,15 +4,26 @@ import csv
 import io
 from datetime import datetime
 from flask import (Flask, g, render_template, request, redirect, url_for,
-            flash, jsonify)
+            flash, jsonify, send_file)
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+import cv2
+import numpy as np
+from block_detector import create_detector
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+UPLOAD_FOLDER = os.path.join(BASE_DIR, 'uploads')
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp'}
+
+# Create upload folder if it doesn't exist
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev-secret-change-this'
 app.config['DATABASE'] = os.path.join(BASE_DIR, 'database.db')
+app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 
 # Startup check: warn if DATABASE_URL is obviously a placeholder so users
 # running locally don't get confusing psycopg2 connection errors.
@@ -1673,6 +1684,161 @@ def admin_min():
     except Exception as e:
         import traceback
         return ("admin min error: " + str(e) + "\n" + traceback.format_exc(), 500)
+
+
+# --- Block Detection Routes ---
+def allowed_file(filename):
+    """Check if uploaded file has an allowed extension."""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@app.route('/detect_blocks', methods=['GET', 'POST'])
+@login_required
+def detect_blocks():
+    """
+    Page for uploading images and detecting blocks.
+    """
+    if request.method == 'POST':
+        # Check if file was uploaded
+        if 'image' not in request.files:
+            flash('No file uploaded', 'danger')
+            return redirect(url_for('detect_blocks'))
+        
+        file = request.files['image']
+        
+        # Check if filename is empty
+        if file.filename == '':
+            flash('No file selected', 'danger')
+            return redirect(url_for('detect_blocks'))
+        
+        # Check if file is allowed
+        if file and allowed_file(file.filename):
+            try:
+                # Read image bytes
+                image_bytes = file.read()
+                
+                # Create detector
+                detector = create_detector()
+                
+                # Detect blocks
+                count, annotated_image, blocks = detector.detect_from_bytes(image_bytes)
+                
+                # Save annotated image
+                filename = secure_filename(file.filename)
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                output_filename = f"detected_{timestamp}_{filename}"
+                output_path = os.path.join(app.config['UPLOAD_FOLDER'], output_filename)
+                cv2.imwrite(output_path, annotated_image)
+                
+                # Prepare block details for display
+                block_details = []
+                for block in blocks:
+                    block_details.append({
+                        'id': block['id'],
+                        'area': int(block['area']),
+                        'width': block['bbox'][2],
+                        'height': block['bbox'][3],
+                        'aspect_ratio': f"{block['aspect_ratio']:.2f}"
+                    })
+                
+                flash(f'Successfully detected {count} block(s)!', 'success')
+                return render_template('detect_blocks.html', 
+                                     count=count, 
+                                     image_path=output_filename,
+                                     blocks=block_details)
+            
+            except Exception as e:
+                app.logger.error(f'Error detecting blocks: {e}')
+                flash('Error processing image. Please try again with a different image.', 'danger')
+                return redirect(url_for('detect_blocks'))
+        else:
+            flash('Invalid file type. Please upload an image (png, jpg, jpeg, gif, bmp)', 'danger')
+            return redirect(url_for('detect_blocks'))
+    
+    return render_template('detect_blocks.html')
+
+
+@app.route('/uploads/<filename>')
+@login_required
+def uploaded_file(filename):
+    """
+    Serve uploaded/processed images.
+    """
+    # Sanitize filename to prevent path traversal attacks
+    filename = secure_filename(filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    
+    # Verify the file exists and is within the upload folder
+    if not os.path.exists(filepath):
+        flash('File not found', 'danger')
+        return redirect(url_for('detect_blocks'))
+    
+    # Verify file is within upload folder (prevent path traversal)
+    if not os.path.abspath(filepath).startswith(os.path.abspath(app.config['UPLOAD_FOLDER'])):
+        flash('Invalid file path', 'danger')
+        return redirect(url_for('detect_blocks'))
+    
+    return send_file(filepath)
+
+
+@app.route('/api/detect_blocks', methods=['POST'])
+@login_required
+def api_detect_blocks():
+    """
+    API endpoint for block detection (returns JSON).
+    """
+    if 'image' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+    
+    file = request.files['image']
+    
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+    
+    if file and allowed_file(file.filename):
+        try:
+            # Read image bytes
+            image_bytes = file.read()
+            
+            # Create detector
+            detector = create_detector()
+            
+            # Detect blocks
+            count, _, blocks = detector.detect_from_bytes(image_bytes)
+            
+            # Prepare response
+            block_list = []
+            for block in blocks:
+                block_list.append({
+                    'id': block['id'],
+                    'area': int(block['area']),
+                    'bbox': {
+                        'x': int(block['bbox'][0]),
+                        'y': int(block['bbox'][1]),
+                        'width': int(block['bbox'][2]),
+                        'height': int(block['bbox'][3])
+                    },
+                    'center': {
+                        'x': int(block['center'][0]),
+                        'y': int(block['center'][1])
+                    },
+                    'aspect_ratio': round(block['aspect_ratio'], 2),
+                    'circularity': round(block['circularity'], 2)
+                })
+            
+            return jsonify({
+                'success': True,
+                'block_count': count,
+                'blocks': block_list
+            })
+        
+        except Exception as e:
+            app.logger.error(f'Error in API detect_blocks: {e}')
+            # Don't expose internal error details to users (security)
+            return jsonify({'error': 'Failed to process image'}), 500
+    
+    return jsonify({'error': 'Invalid file type'}), 400
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))  # Use Railway's port

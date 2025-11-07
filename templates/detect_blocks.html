@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Block Detection - S.A.M Blocks and Interlocks{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2><i class="bi bi-camera"></i> Block Detection & Counting</h2>
+    <p class="text-muted">Upload an image to automatically detect and count blocks using computer vision.</p>
+    
+    <div class="row">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Upload Image</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="image" class="form-label">Select an image file:</label>
+                            <input type="file" class="form-control" id="image" name="image" 
+                                   accept="image/png,image/jpeg,image/jpg,image/gif,image/bmp" required>
+                            <div class="form-text">Supported formats: PNG, JPG, JPEG, GIF, BMP (Max 16MB)</div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <div class="alert alert-info">
+                                <strong>Tips for best results:</strong>
+                                <ul class="mb-0">
+                                    <li>Use good lighting and clear images</li>
+                                    <li>Ensure blocks are well separated</li>
+                                    <li>Avoid shadows and reflections</li>
+                                    <li>Use a plain background if possible</li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-search"></i> Detect Blocks
+                        </button>
+                    </form>
+                </div>
+            </div>
+            
+            {% if count is defined %}
+            <div class="card mt-3">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">Detection Results</h5>
+                </div>
+                <div class="card-body">
+                    <h3 class="text-center mb-3">
+                        <span class="badge bg-success" style="font-size: 2rem;">{{ count }} Block(s) Detected</span>
+                    </h3>
+                    
+                    {% if blocks %}
+                    <h6>Block Details:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Area (px²)</th>
+                                    <th>Width (px)</th>
+                                    <th>Height (px)</th>
+                                    <th>Aspect Ratio</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for block in blocks %}
+                                <tr>
+                                    <td>{{ block.id }}</td>
+                                    <td>{{ block.area }}</td>
+                                    <td>{{ block.width }}</td>
+                                    <td>{{ block.height }}</td>
+                                    <td>{{ block.aspect_ratio }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="col-md-6">
+            {% if image_path is defined %}
+            <div class="card">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">Annotated Image</h5>
+                </div>
+                <div class="card-body">
+                    <img src="{{ url_for('uploaded_file', filename=image_path) }}" 
+                         class="img-fluid rounded" 
+                         alt="Detected blocks">
+                    <p class="text-muted mt-2 small">
+                        Green boxes show detected blocks with labels. 
+                        Red dots mark the center of each block.
+                    </p>
+                </div>
+            </div>
+            {% else %}
+            <div class="card">
+                <div class="card-header bg-secondary text-white">
+                    <h5 class="mb-0">How It Works</h5>
+                </div>
+                <div class="card-body">
+                    <h6>Computer Vision Detection Process:</h6>
+                    <ol>
+                        <li><strong>Preprocessing:</strong> The image is converted to grayscale and smoothed to reduce noise.</li>
+                        <li><strong>Edge Detection:</strong> Canny edge detection identifies boundaries of objects.</li>
+                        <li><strong>Contour Analysis:</strong> The algorithm finds closed contours that could be blocks.</li>
+                        <li><strong>Filtering:</strong> Contours are filtered by size, shape, and aspect ratio to identify actual blocks.</li>
+                        <li><strong>Counting:</strong> Valid blocks are counted and annotated with bounding boxes.</li>
+                    </ol>
+                    
+                    <div class="alert alert-warning mt-3">
+                        <strong>Note:</strong> This is a basic computer vision approach. For production use, 
+                        consider training a deep learning model with labeled images of your specific blocks 
+                        for higher accuracy.
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">API Access</h5>
+                </div>
+                <div class="card-body">
+                    <p>You can also use the API endpoint for programmatic access:</p>
+                    <pre class="bg-light p-3 rounded"><code>POST /api/detect_blocks
+Content-Type: multipart/form-data
+
+Form Data:
+  image: [image file]
+
+Response:
+{
+  "success": true,
+  "block_count": 5,
+  "blocks": [
+    {
+      "id": 0,
+      "area": 1234,
+      "bbox": {"x": 10, "y": 20, "width": 50, "height": 60},
+      "center": {"x": 35, "y": 50},
+      "aspect_ratio": 0.83,
+      "circularity": 0.45
+    },
+    ...
+  ]
+}</code></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
