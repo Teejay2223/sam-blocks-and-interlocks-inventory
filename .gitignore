@@ -20,3 +20,12 @@ env/
 # pytest / caches
 .pytest_cache/
 .cache/
+
+# AI/ML datasets and training artifacts
+block_dataset/
+runs/
+weights/
+*.pt
+*.onnx
+*.engine
+yolov*/
