@@ -1704,13 +1704,13 @@ def block_detection():
     # Handle POST - file upload for detection
     if 'file' not in request.files:
         flash('No file uploaded', 'danger')
-        return redirect(request.url)
+        return redirect(url_for('block_detection'))
     
     file = request.files['file']
     
     if file.filename == '':
         flash('No file selected', 'danger')
-        return redirect(request.url)
+        return redirect(url_for('block_detection'))
     
     if file and allowed_file(file.filename):
         try:
@@ -1745,14 +1745,14 @@ def block_detection():
                                      original_image=unique_filename)
             else:
                 flash(f"Detection failed: {results['message']}", 'danger')
-                return redirect(request.url)
+                return redirect(url_for('block_detection'))
                 
         except Exception as e:
             flash(f"Error processing image: {str(e)}", 'danger')
-            return redirect(request.url)
+            return redirect(url_for('block_detection'))
     else:
         flash('Invalid file type. Please upload an image file (png, jpg, jpeg, gif, bmp).', 'danger')
-        return redirect(request.url)
+        return redirect(url_for('block_detection'))
 
 @app.route('/detect/history')
 @login_required
