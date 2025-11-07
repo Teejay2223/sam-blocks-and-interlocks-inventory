@@ -1808,8 +1808,8 @@ def api_detect_blocks():
                         'x': int(block['center'][0]),
                         'y': int(block['center'][1])
                     },
-                    'aspect_ratio': float(f"{block['aspect_ratio']:.2f}"),
-                    'circularity': float(f"{block['circularity']:.2f}")
+                    'aspect_ratio': round(block['aspect_ratio'], 2),
+                    'circularity': round(block['circularity'], 2)
                 })
             
             return jsonify({

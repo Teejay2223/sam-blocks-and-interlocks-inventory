@@ -131,6 +131,39 @@ class BlockDetector:
         
         return filtered
     
+    def _annotate_image(self, image: np.ndarray, blocks: List[Dict]) -> np.ndarray:
+        """
+        Annotate image with detected blocks.
+        
+        Args:
+            image: Image to annotate
+            blocks: List of detected blocks
+            
+        Returns:
+            Annotated image
+        """
+        annotated = image.copy()
+        
+        # Annotate image with detected blocks
+        for block in blocks:
+            x, y, w, h = block['bbox']
+            # Draw bounding box
+            cv2.rectangle(annotated, (x, y), (x + w, y + h), (0, 255, 0), 2)
+            # Draw center point
+            center = block['center']
+            cv2.circle(annotated, center, 5, (0, 0, 255), -1)
+            # Add label
+            label = f"Block {block['id']}"
+            cv2.putText(annotated, label, (x, y - 10), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+        
+        # Add count to image
+        count_text = f"Total Blocks: {len(blocks)}"
+        cv2.putText(annotated, count_text, (10, 30), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        
+        return annotated
+    
     def detect_and_count(self, image_path: str) -> Tuple[int, np.ndarray, List[Dict]]:
         """
         Detect and count blocks in an image.
@@ -146,9 +179,6 @@ class BlockDetector:
         if image is None:
             raise ValueError(f"Could not read image from {image_path}")
         
-        # Store original for annotation
-        annotated = image.copy()
-        
         # Preprocess
         preprocessed = self.preprocess_image(image)
         
@@ -161,23 +191,8 @@ class BlockDetector:
         # Filter blocks
         filtered_blocks = self.filter_blocks(blocks)
         
-        # Annotate image with detected blocks
-        for block in filtered_blocks:
-            x, y, w, h = block['bbox']
-            # Draw bounding box
-            cv2.rectangle(annotated, (x, y), (x + w, y + h), (0, 255, 0), 2)
-            # Draw center point
-            center = block['center']
-            cv2.circle(annotated, center, 5, (0, 0, 255), -1)
-            # Add label
-            label = f"Block {block['id']}"
-            cv2.putText(annotated, label, (x, y - 10), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-        
-        # Add count to image
-        count_text = f"Total Blocks: {len(filtered_blocks)}"
-        cv2.putText(annotated, count_text, (10, 30), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        # Annotate image
+        annotated = self._annotate_image(image, filtered_blocks)
         
         return len(filtered_blocks), annotated, filtered_blocks
     
@@ -198,9 +213,6 @@ class BlockDetector:
         if image is None:
             raise ValueError("Could not decode image from bytes")
         
-        # Store original for annotation
-        annotated = image.copy()
-        
         # Preprocess
         preprocessed = self.preprocess_image(image)
         
@@ -213,23 +225,8 @@ class BlockDetector:
         # Filter blocks
         filtered_blocks = self.filter_blocks(blocks)
         
-        # Annotate image with detected blocks
-        for block in filtered_blocks:
-            x, y, w, h = block['bbox']
-            # Draw bounding box
-            cv2.rectangle(annotated, (x, y), (x + w, y + h), (0, 255, 0), 2)
-            # Draw center point
-            center = block['center']
-            cv2.circle(annotated, center, 5, (0, 0, 255), -1)
-            # Add label
-            label = f"Block {block['id']}"
-            cv2.putText(annotated, label, (x, y - 10), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-        
-        # Add count to image
-        count_text = f"Total Blocks: {len(filtered_blocks)}"
-        cv2.putText(annotated, count_text, (10, 30), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+        # Annotate image
+        annotated = self._annotate_image(image, filtered_blocks)
         
         return len(filtered_blocks), annotated, filtered_blocks
 
