@@ -67,9 +67,12 @@ class BlockDetector:
                     class_id = int(box.cls[0].cpu().numpy())
                     class_name = result.names[class_id]
                     
-                    # For block detection, we'll count specific classes
-                    # In a real implementation, you'd filter for block-specific classes
-                    # For now, we'll count all detected objects as potential blocks
+                    # NOTE: Current implementation uses pretrained COCO model which detects
+                    # general objects (person, car, etc). For production use, you should:
+                    # 1. Train a custom model specifically for SAM blocks
+                    # 2. Filter detections by specific block class IDs
+                    # 3. Use domain-specific confidence thresholds
+                    # Example filter: if class_name in ['block', 'sam_block', 'interlock']:
                     detections.append({
                         'bbox': [float(x1), float(y1), float(x2), float(y2)],
                         'confidence': confidence,
@@ -128,6 +131,7 @@ class BlockDetector:
                     class_id = int(box.cls[0].cpu().numpy())
                     class_name = result.names[class_id]
                     
+                    # NOTE: See detect_blocks() method for production recommendations
                     detections.append({
                         'bbox': [float(x1), float(y1), float(x2), float(y2)],
                         'confidence': confidence,
@@ -205,9 +209,10 @@ class BlockDetector:
             bool: True if successful, False otherwise
         """
         try:
-            # Convert RGB to BGR for OpenCV
+            # YOLOv8's result.plot() returns BGR format (ready for OpenCV)
+            # No color conversion needed
             if annotated_image is not None:
-                cv2.imwrite(output_path, cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
+                cv2.imwrite(output_path, annotated_image)
                 return True
             return False
         except Exception as e:
