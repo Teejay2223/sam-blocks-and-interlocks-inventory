@@ -1702,14 +1702,14 @@ def detect_blocks():
         # Check if file was uploaded
         if 'image' not in request.files:
             flash('No file uploaded', 'danger')
-            return redirect(request.url)
+            return redirect(url_for('detect_blocks'))
         
         file = request.files['image']
         
         # Check if filename is empty
         if file.filename == '':
             flash('No file selected', 'danger')
-            return redirect(request.url)
+            return redirect(url_for('detect_blocks'))
         
         # Check if file is allowed
         if file and allowed_file(file.filename):
@@ -1749,11 +1749,11 @@ def detect_blocks():
             
             except Exception as e:
                 app.logger.error(f'Error detecting blocks: {e}')
-                flash(f'Error processing image: {str(e)}', 'danger')
-                return redirect(request.url)
+                flash('Error processing image. Please try again with a different image.', 'danger')
+                return redirect(url_for('detect_blocks'))
         else:
             flash('Invalid file type. Please upload an image (png, jpg, jpeg, gif, bmp)', 'danger')
-            return redirect(request.url)
+            return redirect(url_for('detect_blocks'))
     
     return render_template('detect_blocks.html')
 
@@ -1764,7 +1764,21 @@ def uploaded_file(filename):
     """
     Serve uploaded/processed images.
     """
-    return send_file(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+    # Sanitize filename to prevent path traversal attacks
+    filename = secure_filename(filename)
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    
+    # Verify the file exists and is within the upload folder
+    if not os.path.exists(filepath):
+        flash('File not found', 'danger')
+        return redirect(url_for('detect_blocks'))
+    
+    # Verify file is within upload folder (prevent path traversal)
+    if not os.path.abspath(filepath).startswith(os.path.abspath(app.config['UPLOAD_FOLDER'])):
+        flash('Invalid file path', 'danger')
+        return redirect(url_for('detect_blocks'))
+    
+    return send_file(filepath)
 
 
 @app.route('/api/detect_blocks', methods=['POST'])
@@ -1820,7 +1834,8 @@ def api_detect_blocks():
         
         except Exception as e:
             app.logger.error(f'Error in API detect_blocks: {e}')
-            return jsonify({'error': str(e)}), 500
+            # Don't expose internal error details to users (security)
+            return jsonify({'error': 'Failed to process image'}), 500
     
     return jsonify({'error': 'Invalid file type'}), 400
 
