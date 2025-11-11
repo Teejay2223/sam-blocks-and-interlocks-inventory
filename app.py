@@ -311,6 +311,23 @@ def init_db():
         ''')
     except Exception:
         pass
+    # expenses table (for business expense tracking)
+    try:
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS expenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                category TEXT NOT NULL,
+                description TEXT,
+                amount REAL NOT NULL,
+                payment_method TEXT,
+                receipt_number TEXT,
+                created_by TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+    except Exception:
+        pass
 
 
 # Run migrations before first request so existing DBs are updated when app is started via flask run
@@ -1351,6 +1368,166 @@ def admin_notifications():
         return redirect(url_for('admin_notifications'))
     rows = db.execute('SELECT * FROM notifications ORDER BY created_at DESC, id DESC LIMIT 200').fetchall()
     return render_template('admin/notifications.html', notifications=rows)
+
+
+# --- Admin: expenses CRUD ---
+@app.route('/admin/expenses', methods=['GET','POST'])
+@login_required
+@admin_required
+def admin_expenses():
+    db = get_db()
+    if request.method == 'POST':
+        date = request.form.get('date') or datetime.utcnow().date().isoformat()
+        category = request.form['category']
+        description = request.form.get('description', '')
+        amount = float(request.form['amount'])
+        payment_method = request.form.get('payment_method', '')
+        receipt_number = request.form.get('receipt_number', '')
+        user = getattr(current_user, 'username', None) or getattr(current_user, 'email', None) or 'unknown'
+        db.execute('''INSERT INTO expenses (date, category, description, amount, payment_method, receipt_number, created_by) 
+                      VALUES (?, ?, ?, ?, ?, ?, ?)''',
+                   (date, category, description, amount, payment_method, receipt_number, user))
+        db.commit()
+        flash('Expense recorded', 'success')
+        return redirect(url_for('admin_expenses'))
+    
+    # Filters
+    cat_filter = request.args.get('category', '').strip()
+    start = request.args.get('start')
+    end = request.args.get('end')
+    params = []
+    sql = 'SELECT * FROM expenses WHERE 1=1'
+    if cat_filter:
+        sql += ' AND category = ?'
+        params.append(cat_filter)
+    if start:
+        sql += ' AND date(date) >= date(?)'
+        params.append(start)
+    if end:
+        sql += ' AND date(date) <= date(?)'
+        params.append(end)
+    sql += ' ORDER BY date DESC, id DESC'
+    rows = db.execute(sql, params).fetchall()
+    
+    # Get unique categories for filter
+    categories = db.execute('SELECT DISTINCT category FROM expenses ORDER BY category').fetchall()
+    cat_list = [c['category'] if isinstance(c, sqlite3.Row) else c['category'] for c in categories]
+    
+    return render_template('admin/expenses_manage.html', expenses=rows, categories=cat_list, 
+                         cat_filter=cat_filter, start=start, end=end)
+
+
+@app.route('/admin/expenses/edit/<int:eid>', methods=['GET','POST'])
+@login_required
+@admin_required
+def admin_expenses_edit(eid):
+    db = get_db()
+    if request.method == 'POST':
+        date = request.form.get('date') or datetime.utcnow().date().isoformat()
+        category = request.form['category']
+        description = request.form.get('description', '')
+        amount = float(request.form['amount'])
+        payment_method = request.form.get('payment_method', '')
+        receipt_number = request.form.get('receipt_number', '')
+        db.execute('''UPDATE expenses SET date = ?, category = ?, description = ?, amount = ?, 
+                      payment_method = ?, receipt_number = ? WHERE id = ?''',
+                   (date, category, description, amount, payment_method, receipt_number, eid))
+        db.commit()
+        flash('Expense updated', 'success')
+        return redirect(url_for('admin_expenses'))
+    row = db.execute('SELECT * FROM expenses WHERE id = ?', (eid,)).fetchone()
+    if not row:
+        flash('Expense not found', 'warning')
+        return redirect(url_for('admin_expenses'))
+    return render_template('admin/expenses_edit.html', expense=row)
+
+
+@app.route('/admin/expenses/delete/<int:eid>', methods=['POST'])
+@login_required
+@admin_required
+def admin_expenses_delete(eid):
+    db = get_db()
+    db.execute('DELETE FROM expenses WHERE id = ?', (eid,))
+    db.commit()
+    flash('Expense deleted', 'info')
+    return redirect(url_for('admin_expenses'))
+
+
+# --- Admin: financial breakdown (revenue, expenses, profit) ---
+@app.route('/admin/financial_breakdown')
+@login_required
+@admin_required
+def admin_financial_breakdown():
+    db = get_db()
+    
+    # Date range filters
+    start = request.args.get('start')
+    end = request.args.get('end')
+    if not start:
+        # Default to current month
+        start = datetime.utcnow().date().replace(day=1).isoformat()
+    if not end:
+        end = datetime.utcnow().date().isoformat()
+    
+    # Revenue from sales
+    revenue_row = db.execute('''
+        SELECT SUM(amount) as total FROM sales 
+        WHERE date(sale_date) BETWEEN date(?) AND date(?)
+    ''', (start, end)).fetchone()
+    revenue = float(revenue_row['total'] or 0)
+    
+    # Expenses
+    expenses_row = db.execute('''
+        SELECT SUM(amount) as total FROM expenses 
+        WHERE date(date) BETWEEN date(?) AND date(?)
+    ''', (start, end)).fetchone()
+    expenses = float(expenses_row['total'] or 0)
+    
+    # Profit
+    profit = revenue - expenses
+    profit_margin = (profit / revenue * 100) if revenue > 0 else 0
+    
+    # Revenue by month (last 6 months)
+    monthly_revenue = db.execute('''
+        SELECT strftime('%Y-%m', sale_date) as month, SUM(amount) as total
+        FROM sales
+        WHERE date(sale_date) >= date('now', '-6 months')
+        GROUP BY month
+        ORDER BY month
+    ''').fetchall()
+    
+    # Expenses by category for date range
+    expenses_by_cat = db.execute('''
+        SELECT category, SUM(amount) as total
+        FROM expenses
+        WHERE date(date) BETWEEN date(?) AND date(?)
+        GROUP BY category
+        ORDER BY total DESC
+    ''', (start, end)).fetchall()
+    
+    # Monthly expenses (last 6 months)
+    monthly_expenses = db.execute('''
+        SELECT strftime('%Y-%m', date) as month, SUM(amount) as total
+        FROM expenses
+        WHERE date(date) >= date('now', '-6 months')
+        GROUP BY month
+        ORDER BY month
+    ''').fetchall()
+    
+    # Top expense items in period
+    top_expenses = db.execute('''
+        SELECT date, category, description, amount
+        FROM expenses
+        WHERE date(date) BETWEEN date(?) AND date(?)
+        ORDER BY amount DESC
+        LIMIT 10
+    ''', (start, end)).fetchall()
+    
+    return render_template('admin/financial_breakdown.html',
+                         start=start, end=end,
+                         revenue=revenue, expenses=expenses, profit=profit, profit_margin=profit_margin,
+                         monthly_revenue=monthly_revenue, monthly_expenses=monthly_expenses,
+                         expenses_by_cat=expenses_by_cat, top_expenses=top_expenses)
 
 
 # Admin: customers list

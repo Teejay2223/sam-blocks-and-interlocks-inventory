@@ -25,6 +25,8 @@
                             {% if role == 'admin' %}
                                 <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_dashboard') }}">Admin</a></li>
                                 <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_notifications') }}">Notifications</a></li>
+                                <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_expenses') }}">Expenses</a></li>
+                                <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_financial_breakdown') }}">Financials</a></li>
                                 <li class="nav-item"><a class="nav-link" href="{{ url_for('ledger') }}">Ledger</a></li>
                                 <li class="nav-item"><a class="nav-link" href="{{ url_for('trips') }}">Trips</a></li>
                                 <li class="nav-item"><a class="nav-link" href="{{ url_for('notes') }}">Notes</a></li>
