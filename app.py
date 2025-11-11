@@ -3,8 +3,9 @@ import sqlite3
 import csv
 import io
 import smtplib
+import secrets
 from email.message import EmailMessage
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import (Flask, g, render_template, request, redirect, url_for,
             flash, jsonify)
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -328,6 +329,21 @@ def init_db():
         ''')
     except Exception:
         pass
+    # password_reset_tokens table (for forgot password functionality)
+    try:
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                token TEXT NOT NULL UNIQUE,
+                expires_at TEXT NOT NULL,
+                used INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+        ''')
+    except Exception:
+        pass
 
 
 # Run migrations before first request so existing DBs are updated when app is started via flask run
@@ -595,6 +611,123 @@ def logout():
     logout_user()
     flash('Logged out', 'info')
     return redirect(url_for('login'))
+
+
+# --- Forgot Password & Reset ---
+@app.route('/forgot_password', methods=['GET', 'POST'])
+def forgot_password():
+    """Generate and send password reset token via email"""
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip()
+        if not email:
+            flash('Please enter your email address', 'warning')
+            return redirect(url_for('forgot_password'))
+        
+        db = get_db()
+        # Check if user exists (check both users and customers tables)
+        user = db.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+        if not user:
+            user = db.execute("SELECT * FROM customers WHERE email = ?", (email,)).fetchone()
+        
+        # Always show success message (security best practice - don't reveal if email exists)
+        flash('If that email exists, a password reset link has been sent.', 'info')
+        
+        if user:
+            # Generate secure random token
+            token = secrets.token_urlsafe(32)
+            user_id = user['id']
+            expires_at = (datetime.utcnow() + timedelta(hours=1)).isoformat()
+            
+            # Store token in database
+            try:
+                db.execute('''INSERT INTO password_reset_tokens (user_id, token, expires_at) 
+                             VALUES (?, ?, ?)''', (user_id, token, expires_at))
+                db.commit()
+            except Exception as e:
+                app.logger.error('Failed to store reset token: %s', e)
+                return redirect(url_for('login'))
+            
+            # Send reset email
+            reset_url = f"{request.host_url.rstrip('/')}/reset_password/{token}"
+            subject = "Password Reset Request - S.A.M Blocks"
+            body = f"""
+Hello,
+
+You requested a password reset for your S.A.M Blocks and Interlocks account.
+
+Click the link below to reset your password (valid for 1 hour):
+{reset_url}
+
+If you didn't request this, please ignore this email. Your password will remain unchanged.
+
+Best regards,
+S.A.M Blocks and Interlocks Team
+            """
+            
+            try:
+                send_email(subject, body, [email])
+                app.logger.info('Password reset email sent to: %s', email)
+            except Exception as e:
+                app.logger.warning('Failed to send reset email: %s', e)
+        
+        return redirect(url_for('login'))
+    
+    return render_template('auth/forgot_password.html')
+
+
+@app.route('/reset_password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    """Validate token and allow user to set new password"""
+    db = get_db()
+    
+    # Validate token
+    token_row = db.execute('''
+        SELECT * FROM password_reset_tokens 
+        WHERE token = ? AND used = 0 AND datetime(expires_at) > datetime('now')
+    ''', (token,)).fetchone()
+    
+    if not token_row:
+        flash('Invalid or expired reset link. Please request a new one.', 'danger')
+        return redirect(url_for('forgot_password'))
+    
+    if request.method == 'POST':
+        new_password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        
+        if not new_password or len(new_password) < 6:
+            flash('Password must be at least 6 characters long', 'warning')
+            return redirect(url_for('reset_password', token=token))
+        
+        if new_password != confirm_password:
+            flash('Passwords do not match', 'warning')
+            return redirect(url_for('reset_password', token=token))
+        
+        user_id = token_row['user_id']
+        hashed_password = generate_password_hash(new_password)
+        
+        # Update password in users table first
+        try:
+            result = db.execute("UPDATE users SET password = ? WHERE id = ?", 
+                              (hashed_password, user_id))
+            if result.rowcount == 0:
+                # Not in users table, try customers table
+                db.execute("UPDATE customers SET password = ? WHERE id = ?", 
+                          (hashed_password, user_id))
+        except Exception as e:
+            app.logger.error('Failed to update password: %s', e)
+            flash('Failed to reset password. Please try again.', 'danger')
+            return redirect(url_for('forgot_password'))
+        
+        # Mark token as used
+        db.execute("UPDATE password_reset_tokens SET used = 1 WHERE id = ?", 
+                  (token_row['id'],))
+        db.commit()
+        
+        flash('Password reset successful! You can now log in with your new password.', 'success')
+        return redirect(url_for('login'))
+    
+    return render_template('auth/reset_password.html', token=token)
+
 
 # Products - list for customers
 @app.route('/products')
