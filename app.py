@@ -2,6 +2,8 @@ import os
 import sqlite3
 import csv
 import io
+import smtplib
+from email.message import EmailMessage
 from datetime import datetime
 from flask import (Flask, g, render_template, request, redirect, url_for,
             flash, jsonify)
@@ -13,6 +15,14 @@ BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'dev-secret-change-this'
 app.config['DATABASE'] = os.path.join(BASE_DIR, 'database.db')
+# Optional email/notification configuration via environment variables
+app.config['SMTP_HOST'] = os.environ.get('SMTP_HOST', '')
+app.config['SMTP_PORT'] = int(os.environ.get('SMTP_PORT', '587') or 587)
+app.config['SMTP_USERNAME'] = os.environ.get('SMTP_USERNAME', '')
+app.config['SMTP_PASSWORD'] = os.environ.get('SMTP_PASSWORD', '')
+app.config['SMTP_USE_TLS'] = (os.environ.get('SMTP_USE_TLS', '1').lower() in ('1','true','yes'))
+app.config['SMTP_SENDER'] = os.environ.get('SMTP_SENDER', '')  # default to username if empty
+app.config['ADMIN_EMAILS'] = os.environ.get('ADMIN_EMAILS', '')  # comma-separated
 
 # Startup check: warn if DATABASE_URL is obviously a placeholder so users
 # running locally don't get confusing psycopg2 connection errors.
@@ -287,6 +297,20 @@ def init_db():
         ''')
     except Exception:
         pass
+    # notifications table (for in-app admin notifications)
+    try:
+        db.execute('''
+            CREATE TABLE IF NOT EXISTS notifications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT NOT NULL,
+                message TEXT,
+                level TEXT DEFAULT 'info',
+                is_read INTEGER DEFAULT 0,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
+            )
+        ''')
+    except Exception:
+        pass
 
 
 # Run migrations before first request so existing DBs are updated when app is started via flask run
@@ -401,6 +425,85 @@ def admin_required(func):
             return redirect(url_for('login'))
         return func(*args, **kwargs)
     return wrapper
+
+# --- Notifications/email helpers ---
+def _get_admin_emails(db=None):
+    # Prefer env var list
+    env_val = (app.config.get('ADMIN_EMAILS') or '').strip()
+    emails = []
+    if env_val:
+        emails = [e.strip() for e in env_val.split(',') if e.strip()]
+    if emails:
+        return emails
+    # Fallback to any users with role=admin
+    try:
+        db = db or get_db()
+        rows = db.execute("SELECT email FROM users WHERE LOWER(role) = 'admin' AND email IS NOT NULL AND email <> ''").fetchall()
+        emails = [r['email'] if isinstance(r, sqlite3.Row) else (r['email'] if 'email' in r.keys() else None) for r in rows]
+        emails = [e for e in emails if e]
+    except Exception:
+        emails = []
+    # Last resort: configured default admin email from README
+    if not emails:
+        fallback = 'samventuresblocksinterlocks@gmail.com'
+        emails = [fallback]
+    return emails
+
+def send_email(subject: str, body: str, to_emails: list[str]) -> bool:
+    host = app.config.get('SMTP_HOST') or ''
+    user = app.config.get('SMTP_USERNAME') or ''
+    pwd = app.config.get('SMTP_PASSWORD') or ''
+    port = int(app.config.get('SMTP_PORT') or 587)
+    use_tls = bool(app.config.get('SMTP_USE_TLS'))
+    sender = (app.config.get('SMTP_SENDER') or user or 'no-reply@example.com')
+    if not host or not to_emails:
+        app.logger.info('Email not sent: SMTP_HOST or recipients missing')
+        return False
+    try:
+        msg = EmailMessage()
+        msg['Subject'] = subject
+        msg['From'] = sender
+        msg['To'] = ', '.join(to_emails)
+        msg.set_content(body)
+        with smtplib.SMTP(host, port, timeout=20) as smtp:
+            if use_tls:
+                smtp.starttls()
+            if user:
+                smtp.login(user, pwd)
+            smtp.send_message(msg)
+        app.logger.info('Notification email sent to: %s', to_emails)
+        return True
+    except Exception as e:
+        app.logger.warning('Failed to send email: %s', e)
+        return False
+
+def notify_admins_on_order(order_id: int, customer_name: str, product_name: str, qty: int, total: float, account_number: str = ''):
+    try:
+        db = get_db()
+        # Insert in-app notification
+        title = f"New order #{order_id}"
+        msg = f"Customer: {customer_name}\nItem: {product_name} x{qty}\nTotal: {total:.2f}\nAccount: {account_number}\nOpen: /orders"
+        try:
+            db.execute("INSERT INTO notifications (title, message, level) VALUES (?, ?, ?)", (title, msg, 'info'))
+            db.commit()
+        except Exception:
+            pass
+        # Email admins (if configured)
+        recipients = _get_admin_emails(db)
+        subject = f"Order #{order_id} placed"
+        body = (
+            f"A new order has been placed.\n\n"
+            f"Order ID: {order_id}\n"
+            f"Customer: {customer_name}\n"
+            f"Product: {product_name}\n"
+            f"Quantity: {qty}\n"
+            f"Total: {total:.2f}\n"
+            f"Account Number: {account_number}\n\n"
+            f"View: {request.host_url.rstrip('/')}/orders\n"
+        )
+        send_email(subject, body, recipients)
+    except Exception as e:
+        app.logger.warning('notify_admins_on_order failed: %s', e)
 
 # --- Routes ---
 @app.route('/')
@@ -1042,6 +1145,20 @@ def add_order():
         except Exception:
             pass
         db.commit()
+        # Prepare details for notifications
+        try:
+            cust_row = db.execute("SELECT name, email FROM customers WHERE id = ?", (customer_id,)).fetchone()
+            customer_name = (cust_row['name'] if cust_row and 'name' in cust_row.keys() else '') or ''
+        except Exception:
+            customer_name = ''
+        try:
+            product_name = product['name'] if 'name' in product.keys() else ''
+        except Exception:
+            product_name = ''
+        try:
+            notify_admins_on_order(order_id, customer_name, product_name, qty, float(total), account_number)
+        except Exception:
+            pass
         flash('Order created (Payment Pending).', 'success')
         return redirect(url_for('orders_list'))
     return render_template('orders_add.html', products=products, customers=customers)
@@ -1207,6 +1324,33 @@ def admin_breakages_delete(bid):
         db.commit()
         flash('Breakage entry removed and stock restored', 'info')
     return redirect(url_for('admin_breakages'))
+
+# --- Admin: notifications ---
+@app.route('/admin/notifications', methods=['GET','POST'])
+@login_required
+@admin_required
+def admin_notifications():
+    db = get_db()
+    if request.method == 'POST':
+        action = request.form.get('action')
+        if action == 'mark_read':
+            try:
+                nid = int(request.form.get('id', 0))
+                db.execute('UPDATE notifications SET is_read = 1 WHERE id = ?', (nid,))
+                db.commit()
+                flash('Notification marked as read', 'success')
+            except Exception:
+                flash('Failed to mark as read', 'warning')
+        elif action == 'mark_all':
+            try:
+                db.execute('UPDATE notifications SET is_read = 1 WHERE is_read = 0')
+                db.commit()
+                flash('All notifications marked as read', 'success')
+            except Exception:
+                flash('Failed to mark all as read', 'warning')
+        return redirect(url_for('admin_notifications'))
+    rows = db.execute('SELECT * FROM notifications ORDER BY created_at DESC, id DESC LIMIT 200').fetchall()
+    return render_template('admin/notifications.html', notifications=rows)
 
 
 # Admin: customers list
