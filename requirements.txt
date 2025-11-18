@@ -1,6 +1,5 @@
 Flask
 flask-login
-Flask-Mail
 werkzeug
 gunicorn
 itsdangerous
