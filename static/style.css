@@ -18,14 +18,14 @@
 
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: #f8f5f2;
+    background: #fdfcfb;
     min-height: 100vh;
     color: var(--dark-text);
 }
 
 /* Navigation */
 .navbar {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    background: linear-gradient(135deg, #b3b5c0 0%, #764ba2 100%) !important;
     box-shadow: 0 4px 20px rgba(0,0,0,0.15);
     padding: 1rem 0;
     border-radius: 15px;
